@@ -21,11 +21,11 @@ workflows:
       - name: Build unsigned IPA
         script: |
           flutter build ipa --release --no-codesign
-          # Manually package the .xcarchive into a signed-less IPA for SideStore
           mkdir -p build/ios/ipa
-          cp -r build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app /tmp/Payload
-          cd /tmp && zip -r Runner.ipa Payload
-          cp /tmp/Runner.ipa "$CM_BUILD_DIR/build/ios/ipa/Runner.ipa"
+          mkdir -p /tmp/ipa_root/Payload
+          cp -r build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app /tmp/ipa_root/Payload/Runner.app
+          cd /tmp/ipa_root && zip -r Runner.ipa Payload
+          cp /tmp/ipa_root/Runner.ipa "$CM_BUILD_DIR/build/ios/ipa/Runner.ipa"
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
