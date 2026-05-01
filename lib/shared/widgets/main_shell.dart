@@ -61,6 +61,8 @@ class _MainShellState extends ConsumerState<MainShell> {
     }
 
     final navBarScale = ref.watch(settingsProvider.select((s) => s.navBarScale));
+    final navBarBottom = ref.watch(settingsProvider.select((s) => s.navBarBottom));
+    final navBarHPad = ref.watch(settingsProvider.select((s) => s.navBarHPad));
     final barHeight = 64.0 * navBarScale;
     final bottomInset = MediaQuery.of(context).padding.bottom;
     // Reserve only the margin + safe area — content extends behind the glass for blur
@@ -81,9 +83,9 @@ class _MainShellState extends ConsumerState<MainShell> {
           ),
           // ── Horizontal bar (6 icons) + edit circle ─────────────────────────────
           Positioned(
-            left: _barHPad,
-            right: _barHPad,
-            bottom: _barMargin + bottomInset,
+            left: navBarHPad,
+            right: navBarHPad,
+            bottom: navBarBottom + bottomInset,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [

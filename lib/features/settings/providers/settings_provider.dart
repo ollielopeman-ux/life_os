@@ -22,6 +22,8 @@ class AppSettings {
   final bool isDarkMode;
   final double uiScale;
   final double navBarScale;
+  final double navBarBottom;
+  final double navBarHPad;
 
   const AppSettings({
     this.weightEnabled = true,
@@ -44,6 +46,8 @@ class AppSettings {
     this.isDarkMode = true,
     this.uiScale = 1.0,
     this.navBarScale = 1.0,
+    this.navBarBottom = 8.0,
+    this.navBarHPad = 20.0,
   });
 
   AppSettings copyWith({
@@ -67,6 +71,8 @@ class AppSettings {
     bool? isDarkMode,
     double? uiScale,
     double? navBarScale,
+    double? navBarBottom,
+    double? navBarHPad,
   }) =>
       AppSettings(
         weightEnabled: weightEnabled ?? this.weightEnabled,
@@ -89,6 +95,8 @@ class AppSettings {
         isDarkMode: isDarkMode ?? this.isDarkMode,
         uiScale: uiScale ?? this.uiScale,
         navBarScale: navBarScale ?? this.navBarScale,
+        navBarBottom: navBarBottom ?? this.navBarBottom,
+        navBarHPad: navBarHPad ?? this.navBarHPad,
       );
 
   factory AppSettings.fromMap(Map<String, dynamic> m) => AppSettings(
@@ -112,6 +120,8 @@ class AppSettings {
         isDarkMode: m['isDarkMode'] ?? true,
         uiScale: (m['uiScale'] as num?)?.toDouble() ?? 1.0,
         navBarScale: (m['navBarScale'] as num?)?.toDouble() ?? 1.0,
+        navBarBottom: (m['navBarBottom'] as num?)?.toDouble() ?? 8.0,
+        navBarHPad: (m['navBarHPad'] as num?)?.toDouble() ?? 20.0,
       );
 
   Map<String, dynamic> toMap() => {
@@ -135,6 +145,8 @@ class AppSettings {
         'isDarkMode': isDarkMode,
         'uiScale': uiScale,
         'navBarScale': navBarScale,
+        'navBarBottom': navBarBottom,
+        'navBarHPad': navBarHPad,
       };
 }
 

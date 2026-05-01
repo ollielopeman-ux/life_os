@@ -51,6 +51,7 @@ class _BodyScreenState extends ConsumerState<BodyScreen> {
     final weightEntries = entries.where((e) => e.weight != null).toList();
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -686,7 +687,6 @@ class _AddEntrySheetState extends ConsumerState<_AddEntrySheet> {
                 Expanded(
                   child: TextField(
                     controller: _weightController,
-                    autofocus: true,
                     keyboardType: const TextInputType.numberWithOptions(
                         decimal: true),
                     style: const TextStyle(

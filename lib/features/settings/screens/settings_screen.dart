@@ -41,8 +41,12 @@ class SettingsScreen extends ConsumerWidget {
           _DisplaySection(
             uiScale: s.uiScale,
             navBarScale: s.navBarScale,
+            navBarBottom: s.navBarBottom,
+            navBarHPad: s.navBarHPad,
             onUiScale: (v) => update(s.copyWith(uiScale: v)),
             onNavBarScale: (v) => update(s.copyWith(navBarScale: v)),
+            onNavBarBottom: (v) => update(s.copyWith(navBarBottom: v)),
+            onNavBarHPad: (v) => update(s.copyWith(navBarHPad: v)),
           ),
           _NotifSection(
             icon: Icons.monitor_weight_outlined,
@@ -321,14 +325,22 @@ class _NotifSection extends StatelessWidget {
 class _DisplaySection extends StatelessWidget {
   final double uiScale;
   final double navBarScale;
+  final double navBarBottom;
+  final double navBarHPad;
   final ValueChanged<double> onUiScale;
   final ValueChanged<double> onNavBarScale;
+  final ValueChanged<double> onNavBarBottom;
+  final ValueChanged<double> onNavBarHPad;
 
   const _DisplaySection({
     required this.uiScale,
     required this.navBarScale,
+    required this.navBarBottom,
+    required this.navBarHPad,
     required this.onUiScale,
     required this.onNavBarScale,
+    required this.onNavBarBottom,
+    required this.onNavBarHPad,
   });
 
   @override
@@ -376,6 +388,24 @@ class _DisplaySection extends StatelessWidget {
             max: 1.4,
             onChanged: onNavBarScale,
           ),
+          const SizedBox(height: 14),
+          _ScaleRow(
+            label: 'Nav bar position (↑ higher)',
+            value: navBarBottom,
+            min: 0,
+            max: 60,
+            pct: false,
+            onChanged: onNavBarBottom,
+          ),
+          const SizedBox(height: 14),
+          _ScaleRow(
+            label: 'Nav bar width (← wider)',
+            value: navBarHPad,
+            min: 0,
+            max: 60,
+            pct: false,
+            onChanged: onNavBarHPad,
+          ),
         ],
       ),
     );
@@ -387,11 +417,13 @@ class _ScaleRow extends StatelessWidget {
   final double value;
   final double min;
   final double max;
+  final bool pct;
   final ValueChanged<double> onChanged;
-  const _ScaleRow({required this.label, required this.value, required this.min, required this.max, required this.onChanged});
+  const _ScaleRow({required this.label, required this.value, required this.min, required this.max, required this.onChanged, this.pct = true});
 
   @override
   Widget build(BuildContext context) {
+    final display = pct ? '${(value * 100).round()}%' : value.round().toString();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -399,8 +431,7 @@ class _ScaleRow extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-            Text('${(value * 100).round()}%',
-                style: const TextStyle(color: Colors.white38, fontSize: 12)),
+            Text(display, style: const TextStyle(color: Colors.white38, fontSize: 12)),
           ],
         ),
         SliderTheme(
