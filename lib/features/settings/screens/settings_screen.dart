@@ -1,6 +1,16 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../providers/settings_provider.dart';
+import '../../schedule/providers/schedule_provider.dart';
+import '../../gym/providers/gym_provider.dart';
+import '../../gym/providers/active_workout_provider.dart';
+import '../../cardio/providers/cardio_provider.dart';
+import '../../cardio/providers/plyo_provider.dart';
+import '../../cardio/providers/active_plyo_provider.dart';
+import '../../reading/providers/reading_provider.dart';
+import '../../body/providers/body_provider.dart';
+import '../../checklist/providers/checklist_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -13,11 +23,9 @@ class SettingsScreen extends ConsumerWidget {
     void update(AppSettings updated) => notifier.update(updated);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF161618),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF161618),
         elevation: 0,
-        title: const Text('Notification Settings'),
+        title: const Text('Settings'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
           onPressed: () => Navigator.of(context).pop(),
@@ -26,6 +34,10 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
         children: [
+          _AppearanceSection(
+            isDark: s.isDarkMode,
+            onToggle: (v) => update(s.copyWith(isDarkMode: v)),
+          ),
           _NotifSection(
             icon: Icons.monitor_weight_outlined,
             title: 'Weight Log',
@@ -100,6 +112,71 @@ class SettingsScreen extends ConsumerWidget {
             onTimePicked: (t) =>
                 update(s.copyWith(cardioHour: t.hour, cardioMinute: t.minute)),
           ),
+          _ResetSection(),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Appearance section ─────────────────────────────────────────────────────────
+
+class _AppearanceSection extends StatelessWidget {
+  final bool isDark;
+  final ValueChanged<bool> onToggle;
+  const _AppearanceSection({required this.isDark, required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    final cardBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFD1D1D6);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFF5B7FA8).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+              color: const Color(0xFF5B7FA8),
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isDark ? 'Dark Mode' : 'Light Mode',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : const Color(0xFF1C1C1E),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  'Switch app appearance',
+                  style: TextStyle(
+                    color: isDark ? Colors.white38 : const Color(0xFF6E6E73),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(value: isDark, onChanged: onToggle),
         ],
       ),
     );
@@ -230,6 +307,218 @@ class _NotifSection extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// ── Reset section ─────────────────────────────────────────────────────────────
+
+class _ResetSection extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20, top: 8),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF3A1A1A)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF453A).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.delete_forever_outlined,
+                color: Color(0xFFFF453A), size: 18),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Reset All Data',
+                    style: TextStyle(
+                        color: Color(0xFFFF453A),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600)),
+                Text('Permanently deletes everything',
+                    style: TextStyle(color: Colors.white38, fontSize: 12)),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () => _showResetDialog(context, ref),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF453A).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: const Color(0xFFFF453A).withValues(alpha: 0.4)),
+              ),
+              child: const Text('Reset',
+                  style: TextStyle(
+                      color: Color(0xFFFF453A),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showResetDialog(BuildContext context, WidgetRef ref) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (dlgCtx) => StatefulBuilder(
+        builder: (ctx, setState) {
+          final valid = ctrl.text == 'RESET';
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C1C1E),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xFF3A1A1A)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded,
+                          color: Color(0xFFFF453A), size: 22),
+                      SizedBox(width: 10),
+                      Text('Reset Everything',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'This will permanently delete all workouts, logs, books, and settings. This cannot be undone.',
+                    style: TextStyle(color: Colors.white54, fontSize: 13, height: 1.5),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Type RESET to confirm',
+                      style: TextStyle(
+                          color: Colors.white38, fontSize: 12, letterSpacing: 0.3)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: ctrl,
+                    autofocus: true,
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+                    decoration: InputDecoration(
+                      hintText: 'RESET',
+                      hintStyle: const TextStyle(color: Colors.white24, fontSize: 15),
+                      filled: true,
+                      fillColor: const Color(0xFF2A2A2C),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: (_) {
+                      if (valid) _doReset(dlgCtx, context, ref);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => Navigator.pop(dlgCtx),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2C2C2E),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Center(
+                              child: Text('Cancel',
+                                  style: TextStyle(
+                                      color: Colors.white54,
+                                      fontWeight: FontWeight.w600)),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: valid
+                              ? () => _doReset(dlgCtx, context, ref)
+                              : null,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: valid
+                                  ? const Color(0xFFFF453A)
+                                  : const Color(0xFFFF453A).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Center(
+                              child: Text('Reset',
+                                  style: TextStyle(
+                                      color: valid
+                                          ? Colors.white
+                                          : Colors.white24,
+                                      fontWeight: FontWeight.w700)),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _doReset(
+      BuildContext dlgCtx, BuildContext screenCtx, WidgetRef ref) async {
+    Navigator.pop(dlgCtx);
+    // Clear all Hive boxes
+    await Future.wait([
+      Hive.box('gym').clear(),
+      Hive.box('reading').clear(),
+      Hive.box('body').clear(),
+      Hive.box('schedule').clear(),
+      Hive.box('cardio').clear(),
+      Hive.box('plyo').clear(),
+      Hive.box('checklist').clear(),
+      Hive.box('settings').clear(),
+    ]);
+    // Invalidate all providers so they rebuild from empty boxes
+    ref.invalidate(scheduleProvider);
+    ref.invalidate(gymProvider);
+    ref.invalidate(activeWorkoutProvider);
+    ref.invalidate(cardioProvider);
+    ref.invalidate(plyoProvider);
+    ref.invalidate(activePlyoProvider);
+    ref.invalidate(booksProvider);
+    ref.invalidate(bodyProvider);
+    ref.invalidate(checklistProvider);
+    ref.invalidate(settingsProvider);
   }
 }
 

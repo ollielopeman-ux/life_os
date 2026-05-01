@@ -96,7 +96,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     final done = books.where((b) => b.status == 'done').toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF161618),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

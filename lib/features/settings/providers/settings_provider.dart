@@ -19,6 +19,7 @@ class AppSettings {
   final bool cardioEnabled;
   final int cardioHour;
   final int cardioMinute;
+  final bool isDarkMode;
 
   const AppSettings({
     this.weightEnabled = true,
@@ -38,6 +39,7 @@ class AppSettings {
     this.cardioEnabled = true,
     this.cardioHour = 18,
     this.cardioMinute = 0,
+    this.isDarkMode = true,
   });
 
   AppSettings copyWith({
@@ -58,6 +60,7 @@ class AppSettings {
     bool? cardioEnabled,
     int? cardioHour,
     int? cardioMinute,
+    bool? isDarkMode,
   }) =>
       AppSettings(
         weightEnabled: weightEnabled ?? this.weightEnabled,
@@ -77,6 +80,7 @@ class AppSettings {
         cardioEnabled: cardioEnabled ?? this.cardioEnabled,
         cardioHour: cardioHour ?? this.cardioHour,
         cardioMinute: cardioMinute ?? this.cardioMinute,
+        isDarkMode: isDarkMode ?? this.isDarkMode,
       );
 
   factory AppSettings.fromMap(Map<String, dynamic> m) => AppSettings(
@@ -97,6 +101,7 @@ class AppSettings {
         cardioEnabled: m['cardioEnabled'] ?? true,
         cardioHour: m['cardioHour'] ?? 18,
         cardioMinute: m['cardioMinute'] ?? 0,
+        isDarkMode: m['isDarkMode'] ?? true,
       );
 
   Map<String, dynamic> toMap() => {
@@ -117,6 +122,7 @@ class AppSettings {
         'cardioEnabled': cardioEnabled,
         'cardioHour': cardioHour,
         'cardioMinute': cardioMinute,
+        'isDarkMode': isDarkMode,
       };
 }
 

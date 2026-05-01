@@ -1,9 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class WeekStrip extends StatelessWidget {
   final DateTime weekStart; // always a Monday
-  final Set<String> completedDates; // 'yyyy-MM-dd' keys
+  final Map<String, Color> completedDates; // 'yyyy-MM-dd' → rating colour
   final ValueChanged<DateTime> onWeekChanged;
 
   const WeekStrip({
@@ -13,8 +13,10 @@ class WeekStrip extends StatelessWidget {
     required this.onWeekChanged,
   });
 
-  static DateTime mondayOf(DateTime date) =>
-      date.subtract(Duration(days: date.weekday - 1));
+  static DateTime mondayOf(DateTime date) {
+    final d = DateTime(date.year, date.month, date.day);
+    return d.subtract(Duration(days: d.weekday - 1));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,9 +35,9 @@ class WeekStrip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(4, 10, 4, 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF1C1C1E),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF2C2C2E)),
+          color: const Color(0xFF1A1A1C),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF242426)),
         ),
         child: Column(
           children: [
@@ -51,9 +53,10 @@ class WeekStrip extends StatelessWidget {
                   child: Text(label,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                          color: Colors.white60,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500)),
+                          color: Colors.white38,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.3)),
                 ),
                 _NavArrow(
                   icon: Icons.chevron_right,
@@ -62,19 +65,19 @@ class WeekStrip extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             // Day cells
             Row(
               children: days.map((day) {
                 final key = _dateKey(day);
-                final isCompleted = completedDates.contains(key);
+                final dotColor = completedDates[key];
                 final isToday = day == today;
                 final isPast = day.isBefore(today);
 
                 return Expanded(
                   child: _DayCell(
                     day: day,
-                    isCompleted: isCompleted,
+                    dotColor: dotColor,
                     isToday: isToday,
                     isPast: isPast,
                   ),
@@ -99,7 +102,7 @@ class _NavArrow extends StatelessWidget {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Icon(icon, color: Colors.white38, size: 20),
+        child: Icon(icon, color: Colors.white24, size: 20),
       ),
     );
   }
@@ -107,59 +110,71 @@ class _NavArrow extends StatelessWidget {
 
 class _DayCell extends StatelessWidget {
   final DateTime day;
-  final bool isCompleted;
+  final Color? dotColor;
   final bool isToday;
   final bool isPast;
   const _DayCell({
     required this.day,
-    required this.isCompleted,
+    required this.dotColor,
     required this.isToday,
     required this.isPast,
   });
 
   @override
   Widget build(BuildContext context) {
-    final label = DateFormat('E').format(day)[0];
+    final letter = DateFormat('E').format(day)[0];
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label,
-            style: TextStyle(
-                color: isToday ? Colors.white54 : Colors.white24,
-                fontSize: 10,
-                fontWeight: FontWeight.w600)),
-        const SizedBox(height: 6),
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: isCompleted
-                ? const Color(0xFF5B7FA8)
-                : Colors.transparent,
-            shape: BoxShape.circle,
-            border: isToday && !isCompleted
-                ? Border.all(
-                    color: const Color(0xFF5B7FA8).withValues(alpha: 0.5),
-                    width: 1.5)
-                : null,
+        // Day letter
+        Text(
+          letter,
+          style: TextStyle(
+            color: isToday ? const Color(0xFF5B7FA8) : Colors.white24,
+            fontSize: 11,
+            fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
+            letterSpacing: 0.5,
           ),
-          child: Center(
-            child: isCompleted
-                ? const Icon(Icons.check, size: 15, color: Colors.white)
-                : Text(
-                    '${day.day}',
-                    style: TextStyle(
-                      color: isToday
-                          ? Colors.white
-                          : isPast
-                              ? Colors.white38
-                              : Colors.white24,
-                      fontSize: 12,
-                      fontWeight:
-                          isToday ? FontWeight.w700 : FontWeight.w400,
-                    ),
+        ),
+        const SizedBox(height: 4),
+        // Date number — pill for today
+        Container(
+          width: 34,
+          height: 34,
+          decoration: isToday
+              ? BoxDecoration(
+                  color: const Color(0xFF1A2C47),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFF5B7FA8).withValues(alpha: 0.55),
+                    width: 1,
                   ),
+                )
+              : null,
+          child: Center(
+            child: Text(
+              '${day.day}',
+              style: TextStyle(
+                color: isToday
+                    ? Colors.white
+                    : isPast
+                        ? Colors.white54
+                        : Colors.white24,
+                fontSize: isToday ? 17 : 15,
+                fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 5),
+        // Completed dot
+        Container(
+          width: 5,
+          height: 5,
+          decoration: BoxDecoration(
+            color: dotColor ?? Colors.transparent,
+            shape: BoxShape.circle,
           ),
         ),
       ],

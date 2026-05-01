@@ -32,7 +32,14 @@ class PlyoNotifier extends Notifier<PlyoState> {
     _save();
   }
 
-  void addExercise(String workoutId, String name, int defaultReps) {
+  void addExercise(
+    String workoutId,
+    String name,
+    int defaultReps, {
+    int defaultSets = 3,
+    double? defaultWeight,
+    int? durationSeconds,
+  }) {
     state = PlyoState(
       workouts: state.workouts
           .map((w) => w.id != workoutId
@@ -40,7 +47,13 @@ class PlyoNotifier extends Notifier<PlyoState> {
               : w.copyWith(exercises: [
                   ...w.exercises,
                   PlyoExercise(
-                      id: _uuid.v4(), name: name, defaultReps: defaultReps),
+                    id: _uuid.v4(),
+                    name: name,
+                    defaultReps: defaultReps,
+                    defaultSets: defaultSets,
+                    defaultWeight: defaultWeight,
+                    durationSeconds: durationSeconds,
+                  ),
                 ]))
           .toList(),
     );
@@ -60,12 +73,54 @@ class PlyoNotifier extends Notifier<PlyoState> {
     _save();
   }
 
-  void logWorkout(PlyoWorkout workout) {
+  void updateExerciseVideo(
+      String workoutId, String exerciseId, String? videoPath) {
+    state = PlyoState(
+      workouts: state.workouts
+          .map((w) => w.id != workoutId
+              ? w
+              : w.copyWith(
+                  exercises: w.exercises
+                      .map((e) =>
+                          e.id != exerciseId ? e : e.copyWith(videoPath: videoPath))
+                      .toList()))
+          .toList(),
+    );
+    _save();
+  }
+
+  void logPlyoSet(String workoutId, String exerciseId, int reps,
+      {double? weight}) {
+    final entry =
+        PlyoSetEntry(reps: reps, weight: weight, date: DateTime.now());
+    state = PlyoState(
+      workouts: state.workouts
+          .map((w) => w.id != workoutId
+              ? w
+              : w.copyWith(
+                  exercises: w.exercises
+                      .map((e) => e.id != exerciseId
+                          ? e
+                          : e.copyWith(history: [...e.history, entry]))
+                      .toList()))
+          .toList(),
+    );
+    _save();
+  }
+
+  void logWorkout(PlyoWorkout workout, {String? rating, String? location, int? durationMinutes}) {
     ref.read(scheduleProvider.notifier).addTask(
           '${workout.name} · Plyo',
           DateTime.now(),
           done: true,
-          workoutData: {'plyo': true, 'exercises': workout.exercises.length},
+          workoutData: {
+            'plyo': true,
+            'exercises': workout.exercises.length,
+            'exerciseNames': workout.exercises.map((e) => e.name).toList(),
+            'rating': rating,
+            'location': location,
+            'durationMinutes': durationMinutes,
+          },
         );
   }
 }

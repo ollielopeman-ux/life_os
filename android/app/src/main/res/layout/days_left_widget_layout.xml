@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:background="#FF161618">
+
+    <TextView
+        android:id="@+id/days_left_year"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="2026"
+        android:textColor="#FFFFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <View android:layout_width="0dp" android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <TextView
+        android:id="@+id/days_left_count"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="245"
+        android:textColor="#FFFFFFFF"
+        android:textSize="40sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="days left"
+        android:textColor="#66FFFFFF"
+        android:textSize="12sp" />
+
+    <ProgressBar
+        android:id="@+id/days_left_progress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_marginTop="8dp"
+        android:progress="33"
+        android:progressTint="#FF5B7FA8"
+        android:progressBackgroundTint="#1AFFFFFF" />
+</LinearLayout>

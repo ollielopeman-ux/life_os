@@ -83,14 +83,7 @@ class CardioNotifier extends Notifier<CardioState> {
         (s) => s.copyWith(sessions: s.sessions.where((ss) => ss.id != sessionId).toList()));
   }
 
-  void logSession(String splitId, CardioSession session) {
-    final detail = [
-      session.type,
-      if (session.distanceKm != null) '${session.distanceKm}km',
-      if (session.durationMinutes != null) '${session.durationMinutes}min',
-      session.intensity,
-    ].join(' · ');
-
+  void logSession(String splitId, CardioSession session, {String? rating, String? location}) {
     ref.read(scheduleProvider.notifier).addTask(
           '${session.name} · Cardio',
           DateTime.now(),
@@ -99,7 +92,12 @@ class CardioNotifier extends Notifier<CardioState> {
             'sets': <String, dynamic>{},
             'prs': <String>[],
             'cardio': true,
-            'detail': detail,
+            'sessionType': session.type,
+            'distanceKm': session.distanceKm,
+            'durationMinutes': session.durationMinutes,
+            'intensity': session.intensity,
+            'rating': rating,
+            'location': location,
           },
         );
   }

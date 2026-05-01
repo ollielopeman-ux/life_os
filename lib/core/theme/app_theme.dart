@@ -28,6 +28,73 @@ abstract class AppColors {
 }
 
 class AppTheme {
+  static ThemeData get light {
+    const accent = AppColors.accent;
+    const bg = Color(0xFFF2F2F7);
+    const surface = Colors.white;
+    const textPrimary = Color(0xFF1C1C1E);
+    const textSecondary = Color(0xFF6E6E73);
+
+    return ThemeData(
+      brightness: Brightness.light,
+      scaffoldBackgroundColor: bg,
+      primaryColor: accent,
+      colorScheme: const ColorScheme.light(
+        primary: accent,
+        onPrimary: Colors.white,
+        surface: surface,
+        onSurface: textPrimary,
+        secondary: accent,
+        onSecondary: Colors.white,
+        surfaceContainerHighest: Color(0xFFE5E5EA),
+        outline: Color(0xFFD1D1D6),
+      ),
+      cardColor: surface,
+      dividerColor: const Color(0xFFD1D1D6),
+      textTheme: const TextTheme(
+        displayLarge: TextStyle(color: textPrimary, fontWeight: FontWeight.w700, fontSize: 34, letterSpacing: -0.8),
+        titleLarge: TextStyle(color: textPrimary, fontWeight: FontWeight.w600, fontSize: 20, letterSpacing: -0.4),
+        titleMedium: TextStyle(color: textPrimary, fontWeight: FontWeight.w600, fontSize: 16, letterSpacing: -0.2),
+        bodyLarge: TextStyle(color: textPrimary, fontSize: 16, letterSpacing: -0.2),
+        bodyMedium: TextStyle(color: textSecondary, fontSize: 14),
+        labelLarge: TextStyle(color: textPrimary, fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: -0.1),
+        labelSmall: TextStyle(color: textSecondary, fontSize: 11, letterSpacing: 0.6),
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: bg,
+        foregroundColor: textPrimary,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
+        titleTextStyle: TextStyle(color: textPrimary, fontSize: 17, fontWeight: FontWeight.w600, letterSpacing: -0.4),
+        iconTheme: IconThemeData(color: textSecondary),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((s) =>
+            s.contains(WidgetState.selected) ? Colors.white : const Color(0xFFBCBCC0)),
+        trackColor: WidgetStateProperty.resolveWith((s) =>
+            s.contains(WidgetState.selected) ? accent : const Color(0xFFE5E5EA)),
+        trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: accent),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        titleTextStyle: const TextStyle(color: textPrimary, fontSize: 17, fontWeight: FontWeight.w600),
+        contentTextStyle: const TextStyle(color: textSecondary, fontSize: 15),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: const Color(0xFFE5E5EA),
+        contentTextStyle: const TextStyle(color: textPrimary),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   static ThemeData get dark {
     const accent = AppColors.accent;
 

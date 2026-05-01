@@ -8,6 +8,7 @@ import '../../gym/providers/gym_provider.dart';
 import '../../gym/providers/active_workout_provider.dart';
 import '../../gym/screens/active_workout_screen.dart';
 import '../../gym/models/gym_models.dart';
+import '../../body/providers/body_provider.dart';
 
 class ChecklistScreen extends ConsumerStatefulWidget {
   const ChecklistScreen({super.key});
@@ -63,6 +64,7 @@ class _ChecklistScreenState extends ConsumerState<ChecklistScreen> {
     final hasCardio = dayTasks.any((t) => t.title.endsWith('· Cardio'));
 
     final gym = ref.watch(gymProvider);
+    final bodyEntries = ref.watch(bodyProvider);
     final todayNormalized =
         DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
     final isViewingToday = _selected == todayNormalized;
@@ -77,6 +79,50 @@ class _ChecklistScreenState extends ConsumerState<ChecklistScreen> {
     final showGymCard = todayGymDay != null && !gymDoneToday;
     final hasReading = dayTasks.any((t) =>
         t.title.startsWith('Started:') || t.title.startsWith('Finished:'));
+
+    // Auto-completed items derived from the selected day's activity
+    final autoItems = <_AutoItem>[];
+    for (final t in dayTasks.where((t) => t.isWorkout && t.done)) {
+      autoItems.add(_AutoItem(
+        label: t.title.replaceAll(' · Gym', '').trim(),
+        icon: Icons.fitness_center,
+        color: const Color(0xFF5B7FA8),
+      ));
+    }
+    for (final t in dayTasks.where((t) => t.done && t.title.endsWith('· Cardio'))) {
+      autoItems.add(_AutoItem(
+        label: t.title.replaceAll(' · Cardio', '').trim(),
+        icon: Icons.directions_run,
+        color: const Color(0xFFE07B54),
+      ));
+    }
+    for (final t in dayTasks.where((t) => t.done && t.title.endsWith('· Plyo'))) {
+      autoItems.add(_AutoItem(
+        label: t.title.replaceAll(' · Plyo', '').trim(),
+        icon: Icons.flash_on_rounded,
+        color: const Color(0xFF9B7FD4),
+      ));
+    }
+    final weightToday = bodyEntries.any((e) =>
+        e.date.year == _selected.year &&
+        e.date.month == _selected.month &&
+        e.date.day == _selected.day &&
+        e.weight != null);
+    if (weightToday) {
+      autoItems.add(const _AutoItem(
+        label: 'Weight logged',
+        icon: Icons.monitor_weight_outlined,
+        color: Color(0xFF34C759),
+      ));
+    }
+    for (final t in dayTasks.where((t) => t.done &&
+        (t.title.startsWith('Started:') || t.title.startsWith('Finished:')))) {
+      autoItems.add(_AutoItem(
+        label: t.title,
+        icon: Icons.menu_book_rounded,
+        color: const Color(0xFF9B7FD4),
+      ));
+    }
 
     // Recents: up to 3 unique titles from past days not already in today's list
     final recentItems = <String>[];
@@ -125,7 +171,6 @@ class _ChecklistScreenState extends ConsumerState<ChecklistScreen> {
         List.generate(7, (i) => _weekStart.add(Duration(days: i)));
 
     return Scaffold(
-      backgroundColor: const Color(0xFF161618),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,6 +226,10 @@ class _ChecklistScreenState extends ConsumerState<ChecklistScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
                 children: [
+                  if (autoItems.isNotEmpty) ...[
+                    ...autoItems.map((a) => _AutoTile(item: a)),
+                    const SizedBox(height: 8),
+                  ],
                   if (items.isEmpty &&
                       suggestions.isEmpty &&
                       !showGymCard &&
@@ -681,6 +730,62 @@ class _WorkoutQuickCard extends ConsumerWidget {
   }
 }
 
+// ── Auto Item & Tile ──────────────────────────────────────────────────────────
+
+class _AutoItem {
+  final String label;
+  final IconData icon;
+  final Color color;
+  const _AutoItem({required this.label, required this.icon, required this.color});
+}
+
+class _AutoTile extends StatelessWidget {
+  final _AutoItem item;
+  const _AutoTile({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          color: item.color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: item.color.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: item.color,
+              ),
+              child: const Icon(Icons.check, size: 13, color: Colors.white),
+            ),
+            const SizedBox(width: 14),
+            Icon(item.icon, size: 15, color: item.color),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                item.label,
+                style: TextStyle(
+                  color: item.color.withValues(alpha: 0.7),
+                  fontSize: 15,
+                  decoration: TextDecoration.lineThrough,
+                  decorationColor: item.color.withValues(alpha: 0.4),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ── Empty State ───────────────────────────────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {
@@ -703,3 +808,4 @@ class _EmptyState extends StatelessWidget {
     );
   }
 }
+

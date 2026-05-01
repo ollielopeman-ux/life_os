@@ -4,6 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'shared/services/notification_service.dart';
+import 'services/widget_service.dart';
 import 'features/schedule/providers/schedule_provider.dart';
 import 'features/gym/providers/gym_provider.dart';
 import 'features/reading/providers/reading_provider.dart';
@@ -22,6 +23,7 @@ void main() async {
   await Hive.openBox('settings');
 
   await NotificationService.instance.init(onTap: _handleNotificationTap);
+  await WidgetService.init();
 
   runApp(const ProviderScope(child: LifeOsApp()));
 }
@@ -86,6 +88,15 @@ class _LifeOsAppState extends ConsumerState<LifeOsApp>
         .where((d) => d.weekdays.contains(todayWeekday))
         .firstOrNull;
 
+    // Update home screen widgets
+    WidgetService.updateDaysLeftWidget();
+    WidgetService.updateGymWidget(
+      workoutName: (todayDay == null || todayDay.isRestDay)
+          ? ''
+          : todayDay.name,
+      exercises: todayDay?.exercises.map((e) => e.name).join(' · ') ?? '',
+    );
+
     final currentBook = books.where((b) => b.status == 'reading').firstOrNull;
 
     NotificationService.instance.scheduleAll(
@@ -135,9 +146,12 @@ class _LifeOsAppState extends ConsumerState<LifeOsApp>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = ref.watch(settingsProvider.select((s) => s.isDarkMode));
     return MaterialApp.router(
-      title: 'Life OS',
-      theme: AppTheme.dark,
+      title: 'OAL OS',
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
       routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
     );

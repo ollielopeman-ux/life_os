@@ -80,7 +80,6 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
             .toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF161618),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -451,21 +450,15 @@ class _DayTaskTile extends StatelessWidget {
 
   (IconData, Color, String) _meta() {
     if (task.isWorkout) {
-      return (
-        Icons.fitness_center,
-        const Color(0xFF5B7FA8),
-        task.title.replaceAll(' · Gym', ''),
-      );
+      return (Icons.fitness_center, const Color(0xFF5B7FA8), task.title.replaceAll(' · Gym', ''));
     }
     if (task.title.endsWith('· Cardio')) {
-      return (
-        Icons.directions_run,
-        const Color(0xFFE07B54),
-        task.title.replaceAll(' · Cardio', ''),
-      );
+      return (Icons.directions_run, const Color(0xFFE07B54), task.title.replaceAll(' · Cardio', ''));
     }
-    if (task.title.startsWith('Started:') ||
-        task.title.startsWith('Finished:')) {
+    if (task.title.endsWith('· Plyo')) {
+      return (Icons.flash_on_rounded, const Color(0xFF9B7FD4), task.title.replaceAll(' · Plyo', ''));
+    }
+    if (task.title.startsWith('Started:') || task.title.startsWith('Finished:')) {
       return (Icons.menu_book_rounded, const Color(0xFF9B7FD4), task.title);
     }
     return (Icons.check_circle_outline, Colors.white54, task.title);
@@ -474,18 +467,21 @@ class _DayTaskTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (icon, color, label) = _meta();
-    final tappable = task.isWorkout;
+    final isGym = task.isWorkout;
+    final isActivity = isGym || task.title.endsWith('· Cardio') || task.title.endsWith('· Plyo');
+
+    void openSheet() => showModalBottomSheet(
+          context: context,
+          useRootNavigator: true,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => isGym
+              ? _WorkoutDetailSheet(task: task)
+              : _ActivityDetailSheet(task: task),
+        );
 
     return GestureDetector(
-      onTap: tappable
-          ? () => showModalBottomSheet(
-                context: context,
-                useRootNavigator: true,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (_) => _WorkoutDetailSheet(task: task),
-              )
-          : null,
+      onTap: isActivity ? openSheet : null,
       child: Padding(
         padding: const EdgeInsets.only(top: 10),
         child: Row(
@@ -501,34 +497,23 @@ class _DayTaskTile extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-              ),
+              child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
             ),
             if (task.workoutPRs.isNotEmpty) ...[
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color:
-                      const Color(0xFFFFD700).withValues(alpha: 0.15),
+                  color: const Color(0xFFFFD700).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text(
-                  '${task.workoutPRs.length} PR',
-                  style: const TextStyle(
-                    color: Color(0xFFFFD700),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                child: Text('${task.workoutPRs.length} PR',
+                    style: const TextStyle(
+                        color: Color(0xFFFFD700), fontSize: 10, fontWeight: FontWeight.w700)),
               ),
               const SizedBox(width: 4),
             ],
-            if (tappable)
-              const Icon(Icons.chevron_right,
-                  size: 16, color: Colors.white24),
+            if (isActivity)
+              const Icon(Icons.chevron_right, size: 16, color: Colors.white24),
           ],
         ),
       ),
@@ -617,7 +602,11 @@ class _WorkoutDetailSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sets = task.workoutSets;
     final prs = task.workoutPRs.toSet();
+    final missed = task.missedExercises;
     final dayName = task.title.replaceAll(' · Gym', '');
+    final rating = task.sessionRating;
+    final location = task.sessionLocation;
+    final duration = task.sessionDuration;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -632,12 +621,9 @@ class _WorkoutDetailSheet extends ConsumerWidget {
           children: [
             Center(
               child: Container(
-                width: 36,
-                height: 4,
+                width: 36, height: 4,
                 margin: const EdgeInsets.only(top: 12, bottom: 16),
-                decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
               ),
             ),
             Expanded(
@@ -645,53 +631,73 @@ class _WorkoutDetailSheet extends ConsumerWidget {
                 controller: controller,
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
                 children: [
+                  // Header
                   Row(
                     children: [
                       Container(
-                        width: 44,
-                        height: 44,
+                        width: 44, height: 44,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF5B7FA8)
-                              .withValues(alpha: 0.12),
+                          color: const Color(0xFF5B7FA8).withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.fitness_center,
-                            color: Color(0xFF5B7FA8), size: 22),
+                        child: const Icon(Icons.fitness_center, color: Color(0xFF5B7FA8), size: 22),
                       ),
                       const SizedBox(width: 14),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(dayName,
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700)),
-                          Text(
-                            DateFormat('EEEE, d MMM · h:mm a')
-                                .format(task.date),
-                            style: const TextStyle(
-                                color: Colors.white38, fontSize: 12),
-                          ),
-                        ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(dayName,
+                                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
+                            Text(DateFormat('EEEE, d MMM · h:mm a').format(task.date),
+                                style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                          ],
+                        ),
                       ),
                     ],
                   ),
+                  // Stats row
+                  if (duration != null || rating != null || location != null) ...[
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        if (duration != null)
+                          _StatChip(
+                            icon: Icons.timer_outlined,
+                            label: duration < 60
+                                ? '$duration min'
+                                : '${duration ~/ 60}h ${duration % 60}m',
+                            color: const Color(0xFF5B7FA8),
+                          ),
+                        if (rating != null)
+                          _StatChip(
+                            icon: _ratingIcon(rating),
+                            label: _ratingLabel(rating),
+                            color: _ratingColor(rating),
+                          ),
+                        if (location != null)
+                          _StatChip(
+                            icon: Icons.location_on_outlined,
+                            label: location,
+                            color: Colors.white54,
+                          ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 20),
                   const Divider(color: Color(0xFF2C2C2E)),
                   const SizedBox(height: 16),
                   if (sets.isEmpty)
-                    const Text('No sets logged',
-                        style: TextStyle(color: Colors.white38)),
+                    const Text('No sets logged', style: TextStyle(color: Colors.white38)),
                   ...sets.entries.map((entry) {
                     final name = entry.key;
                     final exSets = entry.value;
                     final isPR = prs.contains(name);
                     final maxW = exSets.isEmpty
                         ? 0.0
-                        : exSets
-                            .map((s) => (s['weight'] as num).toDouble())
-                            .reduce(max);
+                        : exSets.map((s) => (s['weight'] as num).toDouble()).reduce(max);
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 16),
@@ -703,29 +709,20 @@ class _WorkoutDetailSheet extends ConsumerWidget {
                               Expanded(
                                 child: Text(name,
                                     style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w600)),
+                                        color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
                               ),
                               if (isPR)
                                 Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 3),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFFFD700)
-                                        .withValues(alpha: 0.15),
-                                    borderRadius:
-                                        BorderRadius.circular(6),
-                                    border: Border.all(
-                                        color: const Color(0xFFFFD700)
-                                            .withValues(alpha: 0.4)),
+                                    color: const Color(0xFFFFD700).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.4)),
                                   ),
                                   child: const Text('NEW PR',
                                       style: TextStyle(
-                                          color: Color(0xFFFFD700),
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 0.5)),
+                                          color: Color(0xFFFFD700), fontSize: 10,
+                                          fontWeight: FontWeight.w800, letterSpacing: 0.5)),
                                 ),
                             ],
                           ),
@@ -735,36 +732,25 @@ class _WorkoutDetailSheet extends ConsumerWidget {
                             runSpacing: 6,
                             children: exSets.asMap().entries.map((e) {
                               final s = e.value;
-                              final w =
-                                  (s['weight'] as num).toDouble();
+                              final w = (s['weight'] as num).toDouble();
                               final r = s['reps'] as int;
                               final isTop = w == maxW;
                               return Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 5),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                 decoration: BoxDecoration(
                                   color: isTop
-                                      ? const Color(0xFF5B7FA8)
-                                          .withValues(alpha: 0.12)
+                                      ? const Color(0xFF5B7FA8).withValues(alpha: 0.12)
                                       : const Color(0xFF242428),
-                                  borderRadius:
-                                      BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(8),
                                   border: isTop
-                                      ? Border.all(
-                                          color: const Color(0xFF5B7FA8)
-                                              .withValues(alpha: 0.3))
+                                      ? Border.all(color: const Color(0xFF5B7FA8).withValues(alpha: 0.3))
                                       : null,
                                 ),
-                                child: Text(
-                                  '${_fmtW(w)}kg × $r',
-                                  style: TextStyle(
-                                    color: isTop
-                                        ? const Color(0xFF5B7FA8)
-                                        : Colors.white60,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
+                                child: Text('${_fmtW(w)}kg × $r',
+                                    style: TextStyle(
+                                        color: isTop ? const Color(0xFF5B7FA8) : Colors.white60,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600)),
                               );
                             }).toList(),
                           ),
@@ -772,6 +758,40 @@ class _WorkoutDetailSheet extends ConsumerWidget {
                       ),
                     );
                   }),
+                  // Missed exercises
+                  if (missed.isNotEmpty) ...[
+                    const Divider(color: Color(0xFF2C2C2E)),
+                    const SizedBox(height: 12),
+                    const Text('SKIPPED',
+                        style: TextStyle(
+                            color: Colors.white30, fontSize: 10,
+                            fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: missed.map((name) => Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF242428),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.close, size: 11, color: Colors.white30),
+                            const SizedBox(width: 5),
+                            Text(name,
+                                style: const TextStyle(
+                                    color: Colors.white38, fontSize: 12,
+                                    decoration: TextDecoration.lineThrough,
+                                    decorationColor: Colors.white24)),
+                          ],
+                        ),
+                      )).toList(),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -781,6 +801,150 @@ class _WorkoutDetailSheet extends ConsumerWidget {
     );
   }
 }
+
+// ── Activity Detail Sheet (cardio / plyo) ─────────────────────────────────────
+
+class _ActivityDetailSheet extends StatelessWidget {
+  final Task task;
+  const _ActivityDetailSheet({required this.task});
+
+  @override
+  Widget build(BuildContext context) {
+    final isCardio = task.title.endsWith('· Cardio');
+    final name = task.title.replaceAll(' · Cardio', '').replaceAll(' · Plyo', '');
+    final icon = isCardio ? Icons.directions_run : Icons.flash_on_rounded;
+    final color = isCardio ? const Color(0xFFE07B54) : const Color(0xFF9B7FD4);
+    final rating = task.sessionRating;
+    final location = task.sessionLocation;
+    final duration = task.sessionDuration;
+    final distance = task.cardioDistanceKm;
+    final intensity = task.cardioIntensity;
+    final cardioType = task.cardioType;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36, height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name,
+                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
+                    Text(DateFormat('EEEE, d MMM · h:mm a').format(task.date),
+                        style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (cardioType != null)
+                _StatChip(icon: Icons.category_outlined, label: cardioType, color: color),
+              if (distance != null)
+                _StatChip(icon: Icons.straighten, label: '${distance}km', color: color),
+              if (duration != null)
+                _StatChip(
+                  icon: Icons.timer_outlined,
+                  label: duration < 60 ? '$duration min' : '${duration ~/ 60}h ${duration % 60}m',
+                  color: const Color(0xFF5B7FA8),
+                ),
+              if (intensity != null)
+                _StatChip(icon: Icons.bolt_rounded, label: intensity, color: _intensityColor(intensity)),
+              if (rating != null)
+                _StatChip(icon: _ratingIcon(rating), label: _ratingLabel(rating), color: _ratingColor(rating)),
+              if (location != null)
+                _StatChip(icon: Icons.location_on_outlined, label: location, color: Colors.white54),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Shared detail helpers ─────────────────────────────────────────────────────
+
+class _StatChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  const _StatChip({required this.icon, required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 5),
+          Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+}
+
+IconData _ratingIcon(String r) => switch (r) {
+  'red' => Icons.sentiment_very_dissatisfied,
+  'yellow' => Icons.sentiment_neutral,
+  _ => Icons.sentiment_very_satisfied,
+};
+
+String _ratingLabel(String r) => switch (r) {
+  'red' => 'Tough',
+  'yellow' => 'OK',
+  _ => 'Great',
+};
+
+Color _ratingColor(String r) => switch (r) {
+  'red' => const Color(0xFFFF453A),
+  'yellow' => const Color(0xFFFF9F0A),
+  _ => const Color(0xFF34C759),
+};
+
+Color _intensityColor(String i) => switch (i) {
+  'Easy' => const Color(0xFF4CAF50),
+  'Moderate' => const Color(0xFFFF9800),
+  'Hard' => const Color(0xFFFF5252),
+  'Race Pace' => const Color(0xFFE040FB),
+  _ => Colors.white54,
+};
 
 // ── KPI Row ───────────────────────────────────────────────────────────────────
 

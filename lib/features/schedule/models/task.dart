@@ -16,7 +16,8 @@ class Task {
     this.workoutData,
   });
 
-  bool get isWorkout => workoutData != null;
+  // Only true for gym sessions (title ends with '· Gym')
+  bool get isWorkout => workoutData != null && title.endsWith('· Gym');
 
   // Parsed helpers (safe casts after Hive round-trip)
   Map<String, List<Map<String, dynamic>>> get workoutSets {
@@ -32,6 +33,23 @@ class Task {
     if (raw == null) return [];
     return (raw as List).map((e) => e as String).toList();
   }
+
+  // Shared across gym / cardio / plyo
+  String? get sessionRating => workoutData?['rating'] as String?;
+  String? get sessionLocation => workoutData?['location'] as String?;
+  int? get sessionDuration => (workoutData?['durationMinutes'] as num?)?.toInt();
+
+  // Gym-only
+  List<String> get missedExercises {
+    final raw = workoutData?['missedExercises'];
+    if (raw == null) return [];
+    return (raw as List).map((e) => e as String).toList();
+  }
+
+  // Cardio-only
+  double? get cardioDistanceKm => (workoutData?['distanceKm'] as num?)?.toDouble();
+  String? get cardioIntensity => workoutData?['intensity'] as String?;
+  String? get cardioType => workoutData?['sessionType'] as String?;
 
   Map<String, dynamic> toMap() => {
         'id': id,

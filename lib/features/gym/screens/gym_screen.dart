@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/gym_models.dart';
 import '../providers/gym_provider.dart';
@@ -8,6 +8,8 @@ import '../../../shared/widgets/week_strip.dart';
 import 'active_workout_screen.dart';
 import 'edit_split_screen.dart';
 import 'pr_screen.dart';
+
+enum _CardState { completed, upNext, scheduled }
 
 class GymScreen extends ConsumerStatefulWidget {
   const GymScreen({super.key});
@@ -25,12 +27,20 @@ class _GymScreenState extends ConsumerState<GymScreen> {
     final split = gym.selectedSplit;
     final today = DateTime.now().weekday; // 1=Mon, 7=Sun
 
-    // Completed gym workout dates for week strip
+    // Completed gym workout dates → rating colour for week strip
     final allTasks = ref.watch(scheduleProvider);
-    final completedDates = allTasks
-        .where((t) => t.done && t.title.endsWith('· Gym'))
-        .map((t) => _dateKey(t.date))
-        .toSet();
+    final completedDates = Map.fromEntries(
+      allTasks.where((t) => t.done && t.title.endsWith('· Gym')).map((t) {
+        final rating = t.workoutData?['rating'] as String?;
+        final color = switch (rating) {
+          'red' => const Color(0xFFFF453A),
+          'yellow' => const Color(0xFFFF9F0A),
+          'green' => const Color(0xFF34C759),
+          _ => const Color(0xFF5B7FA8),
+        };
+        return MapEntry(_dateKey(t.date), color);
+      }),
+    );
 
     // Completed day names for the selected week (to mark day cards done)
     final weekEnd = _weekStart.add(const Duration(days: 6));
@@ -44,7 +54,6 @@ class _GymScreenState extends ConsumerState<GymScreen> {
         .toSet();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF161618),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -66,7 +75,8 @@ class _GymScreenState extends ConsumerState<GymScreen> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.tune, color: Colors.white38),
-                    onPressed: () => Navigator.of(context, rootNavigator: true).push(
+                    onPressed: () =>
+                        Navigator.of(context, rootNavigator: true).push(
                       MaterialPageRoute(builder: (_) => const EditSplitScreen()),
                     ),
                   ),
@@ -81,11 +91,10 @@ class _GymScreenState extends ConsumerState<GymScreen> {
               completedDates: completedDates,
               onWeekChanged: (w) => setState(() => _weekStart = w),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
 
             // Resume banner (when workout paused)
             _ResumeBanner(),
-            const SizedBox(height: 4),
 
             // Day list
             Expanded(
@@ -103,11 +112,9 @@ class _GymScreenState extends ConsumerState<GymScreen> {
 
   Widget _buildDayList(GymSplit split, int today, Set<String> doneThisWeek) {
     final sorted = _reorderFromToday(split.days, today);
-    final n = sorted.length;
 
-    bool isToday(WorkoutDay d) =>
-        d.weekdays.isNotEmpty && d.weekdays.contains(today);
     bool isDone(WorkoutDay d) => doneThisWeek.contains(d.name.toLowerCase());
+
     VoidCallback? tapFor(WorkoutDay d) {
       if (d.isRestDay || d.exercises.isEmpty) return null;
       return () {
@@ -118,70 +125,83 @@ class _GymScreenState extends ConsumerState<GymScreen> {
       };
     }
 
-    Widget fullCard(WorkoutDay d) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _DayCard(
-            day: d,
-            isToday: isToday(d),
-            isDone: isDone(d),
-            onTap: tapFor(d),
-          ),
-        );
+    // Assign states — first non-done non-rest day is "up next"
+    bool foundUpNext = false;
+    final infos = sorted.map((d) {
+      final done = isDone(d);
+      final _CardState state;
+      if (done) {
+        state = _CardState.completed;
+      } else if (!foundUpNext && !d.isRestDay && d.exercises.isNotEmpty) {
+        state = _CardState.upNext;
+        foundUpNext = true;
+      } else {
+        state = _CardState.scheduled;
+      }
+      return (day: d, state: state, label: _dayAbbr(d, today));
+    }).toList();
+
+    // Split into "this week" (weekday >= today) and "next week" (weekday < today)
+    final thisWeek = infos
+        .where((i) =>
+            i.day.weekdays.isEmpty || i.day.weekdays.any((w) => w >= today))
+        .toList();
+    final nextWeek = infos
+        .where((i) =>
+            i.day.weekdays.isNotEmpty && i.day.weekdays.every((w) => w < today))
+        .toList();
 
     final children = <Widget>[];
 
-    // First 3: full-width cards
-    for (int i = 0; i < n && i < 3; i++) {
-      children.add(fullCard(sorted[i]));
+    if (thisWeek.isNotEmpty) {
+      children.add(const _SectionLabel('THIS WEEK'));
+      for (final info in thisWeek) {
+        children.add(_WorkoutCard(
+          day: info.day,
+          state: info.state,
+          dayLabel: info.label,
+          onTap: tapFor(info.day),
+        ));
+      }
     }
 
-    if (n >= 7) {
-      // Compact row for days 4–6
-      children.add(Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (int i = 3; i < 6; i++) ...[
-            if (i > 3) const SizedBox(width: 8),
-            Expanded(
-              child: _CompactDayCard(
-                day: sorted[i],
-                isToday: isToday(sorted[i]),
-                isDone: isDone(sorted[i]),
-                onTap: tapFor(sorted[i]),
+    if (nextWeek.isNotEmpty) {
+      children.add(const SizedBox(height: 4));
+      children.add(const _SectionLabel('NEXT WEEK'));
+      for (int i = 0; i < nextWeek.length; i += 2) {
+        children.add(Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _GridWorkoutCard(
+                  day: nextWeek[i].day,
+                  state: nextWeek[i].state,
+                  dayLabel: nextWeek[i].label,
+                  onTap: tapFor(nextWeek[i].day),
+                ),
               ),
-            ),
-          ],
-        ],
-      ));
-      // Thin strip for day 7
-      children.add(const SizedBox(height: 8));
-      children.add(_ThinDayCard(
-        day: sorted[6],
-        isDone: isDone(sorted[6]),
-        onTap: tapFor(sorted[6]),
-      ));
-    } else if (n > 3) {
-      // 4–6 days: compact row for the remainder
-      children.add(Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (int i = 3; i < n; i++) ...[
-            if (i > 3) const SizedBox(width: 8),
-            Expanded(
-              child: _CompactDayCard(
-                day: sorted[i],
-                isToday: isToday(sorted[i]),
-                isDone: isDone(sorted[i]),
-                onTap: tapFor(sorted[i]),
-              ),
-            ),
-          ],
-        ],
-      ));
+              if (i + 1 < nextWeek.length) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _GridWorkoutCard(
+                    day: nextWeek[i + 1].day,
+                    state: nextWeek[i + 1].state,
+                    dayLabel: nextWeek[i + 1].label,
+                    onTap: tapFor(nextWeek[i + 1].day),
+                  ),
+                ),
+              ] else
+                const Expanded(child: SizedBox()),
+            ],
+          ),
+        ));
+      }
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 80),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 80),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: children,
@@ -203,7 +223,7 @@ class _ResumeBanner extends ConsumerWidget {
         MaterialPageRoute(builder: (_) => const ActiveWorkoutScreen()),
       ),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20),
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: const Color(0xFF5B7FA8).withValues(alpha: 0.08),
@@ -335,200 +355,40 @@ class _SplitPickerSheet extends StatelessWidget {
   }
 }
 
-// ── Day Card ───────────────────────────────────────────────────────────────────
+// ── Section Label ──────────────────────────────────────────────────────────────
 
-class _DayCard extends StatelessWidget {
-  final WorkoutDay day;
-  final bool isToday;
-  final bool isDone;
-  final VoidCallback? onTap;
-  const _DayCard({
-    required this.day,
-    required this.isToday,
-    required this.isDone,
-    required this.onTap,
-  });
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
 
   @override
   Widget build(BuildContext context) {
-    final isRest = day.isRestDay;
-    final hasExercises = day.exercises.isNotEmpty;
-    final dimmed = !isToday && !isDone && !isRest;
-    final weekdayLabel = _weekdayStr(day.weekdays);
-
-    final cardBg = isDone
-        ? const Color(0xFF060E1C)
-        : dimmed
-            ? const Color(0xFF171719)
-            : const Color(0xFF1C1C1E);
-
-    final stripBg = isDone
-        ? const Color(0xFF0D2140)
-        : isRest
-            ? const Color(0xFF222226)
-            : hasExercises
-                ? dimmed
-                    ? const Color(0xFF1E3555)
-                    : const Color(0xFF5B7FA8)
-                : const Color(0xFF2C2C2E);
-
-    final iconColor = isDone
-        ? const Color(0xFF7FA8C8)
-        : isRest
-            ? Colors.white24
-            : hasExercises
-                ? dimmed
-                    ? Colors.white38
-                    : Colors.white
-                : Colors.white12;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        clipBehavior: Clip.hardEdge,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isDone
-                ? const Color(0xFF5B7FA8).withValues(alpha: 0.4)
-                : isToday
-                    ? const Color(0xFF5B7FA8).withValues(alpha: 0.5)
-                    : const Color(0xFF242426),
-            width: (isDone || isToday) ? 1.5 : 1,
-          ),
-        ),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Container(
-                  color: cardBg,
-                  padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(day.name,
-                              style: TextStyle(
-                                  color: isDone
-                                      ? const Color(0xFF7FA8C8)
-                                      : dimmed
-                                          ? Colors.white54
-                                          : Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 22)),
-                          if (isToday && !isDone) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF5B7FA8),
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                              child: const Text('TODAY',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.5)),
-                            ),
-                          ],
-                          if (isDone) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF5B7FA8)
-                                    .withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(5),
-                                border: Border.all(
-                                    color: const Color(0xFF5B7FA8)
-                                        .withValues(alpha: 0.5)),
-                              ),
-                              child: const Text('DONE',
-                                  style: TextStyle(
-                                      color: Color(0xFF7FA8C8),
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.5)),
-                            ),
-                          ],
-                        ],
-                      ),
-                      if (weekdayLabel.isNotEmpty) ...[
-                        const SizedBox(height: 3),
-                        Text(weekdayLabel,
-                            style: TextStyle(
-                                color: isDone
-                                    ? Colors.white24
-                                    : isToday
-                                        ? const Color(0xFF5B7FA8)
-                                            .withValues(alpha: 0.8)
-                                        : Colors.white30,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.3)),
-                      ],
-                      if (!isDone) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          isRest
-                              ? 'Rest & Recovery'
-                              : hasExercises
-                                  ? day.exercises
-                                      .map((e) => e.name)
-                                      .join('  ·  ')
-                                  : 'No exercises — tap edit to add',
-                          style: TextStyle(
-                              color: dimmed
-                                  ? Colors.white24
-                                  : Colors.white38,
-                              fontSize: 12),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              Container(
-                width: 60,
-                color: stripBg,
-                alignment: Alignment.center,
-                child: Icon(
-                  isDone
-                      ? Icons.check_rounded
-                      : isRest
-                          ? Icons.bedtime_outlined
-                          : Icons.play_arrow_rounded,
-                  color: iconColor,
-                  size: 26,
-                ),
-              ),
-            ],
-          ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 14, 0, 10),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white38,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.4,
         ),
       ),
     );
   }
 }
 
-// ── Compact Day Card (row of 3) ────────────────────────────────────────────────
+// ── Full-width Workout Card (This Week) ────────────────────────────────────────
 
-class _CompactDayCard extends StatelessWidget {
+class _WorkoutCard extends StatelessWidget {
   final WorkoutDay day;
-  final bool isToday;
-  final bool isDone;
+  final _CardState state;
+  final String dayLabel;
   final VoidCallback? onTap;
-  const _CompactDayCard({
+  const _WorkoutCard({
     required this.day,
-    required this.isToday,
-    required this.isDone,
+    required this.state,
+    required this.dayLabel,
     required this.onTap,
   });
 
@@ -536,81 +396,146 @@ class _CompactDayCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isRest = day.isRestDay;
     final hasExercises = day.exercises.isNotEmpty;
-    final weekdayLabel = _weekdayStr(day.weekdays);
+
+    final cardBg = switch (state) {
+      _CardState.completed => const Color(0xFF111316),
+      _CardState.upNext => const Color(0xFF13192A),
+      _CardState.scheduled => const Color(0xFF161618),
+    };
+
+    final borderColor = switch (state) {
+      _CardState.completed => const Color(0xFF1E2026),
+      _CardState.upNext => const Color(0xFF2A4068),
+      _CardState.scheduled => const Color(0xFF242426),
+    };
+
+    final labelColor = switch (state) {
+      _CardState.completed => const Color(0xFF34C759),
+      _CardState.upNext => const Color(0xFF5B7FA8),
+      _CardState.scheduled => Colors.white30,
+    };
+
+    final labelText = switch (state) {
+      _CardState.completed => 'COMPLETED · $dayLabel',
+      _CardState.upNext => 'UP NEXT · $dayLabel',
+      _CardState.scheduled => 'SCHEDULED · $dayLabel',
+    };
+
+    final nameColor = switch (state) {
+      _CardState.completed => Colors.white38,
+      _CardState.upNext => Colors.white,
+      _CardState.scheduled => Colors.white54,
+    };
+
+    final subtitleColor = switch (state) {
+      _CardState.completed => Colors.white24,
+      _ => Colors.white38,
+    };
+
+    final subtitle = isRest
+        ? 'Rest & Recovery'
+        : !hasExercises
+            ? 'No exercises added yet'
+            : state == _CardState.upNext
+                ? '${day.exercises.first.name}${day.exercises.length > 1 ? '  ·  +${day.exercises.length - 1} more' : ''}'
+                : '${day.exercises.length} exercise${day.exercises.length == 1 ? '' : 's'}';
+
+    final Widget btn = switch (state) {
+      _CardState.completed => Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A3526),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: const Icon(Icons.check_rounded,
+              color: Color(0xFF34C759), size: 22),
+        ),
+      _CardState.upNext => Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF6E96C0), Color(0xFF3C618A)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF5B7FA8).withValues(alpha: 0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Icon(
+            isRest ? Icons.bedtime_outlined : Icons.play_arrow_rounded,
+            color: Colors.white,
+            size: 24,
+          ),
+        ),
+      _CardState.scheduled => Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: const Color(0xFF242428),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(
+            isRest ? Icons.bedtime_outlined : Icons.play_arrow_rounded,
+            color: Colors.white24,
+            size: 22,
+          ),
+        ),
+    };
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
         decoration: BoxDecoration(
-          color: isDone ? const Color(0xFF0A1528) : const Color(0xFF1C1C1E),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDone
-                ? const Color(0xFF5B7FA8).withValues(alpha: 0.4)
-                : isToday
-                    ? const Color(0xFF5B7FA8).withValues(alpha: 0.5)
-                    : const Color(0xFF242426),
-            width: (isDone || isToday) ? 1.5 : 1,
-          ),
+          color: cardBg,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: borderColor, width: 1.5),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Text(
-              day.name,
-              style: TextStyle(
-                color: isDone ? const Color(0xFF7FA8C8) : Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            if (weekdayLabel.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(weekdayLabel,
-                  style: TextStyle(
-                      color: isDone
-                          ? Colors.white24
-                          : isToday
-                              ? const Color(0xFF5B7FA8).withValues(alpha: 0.8)
-                              : Colors.white30,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    labelText,
+                    style: TextStyle(
+                      color: labelColor,
                       fontSize: 10,
-                      fontWeight: FontWeight.w600)),
-            ],
-            const SizedBox(height: 12),
-            Center(
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: isDone
-                      ? const Color(0xFF5B7FA8).withValues(alpha: 0.2)
-                      : isRest
-                          ? const Color(0xFF222226)
-                          : hasExercises
-                              ? const Color(0xFF5B7FA8)
-                              : const Color(0xFF2C2C2E),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  isDone
-                      ? Icons.check_rounded
-                      : isRest
-                          ? Icons.bedtime_outlined
-                          : Icons.play_arrow_rounded,
-                  color: isDone
-                      ? const Color(0xFF7FA8C8)
-                      : isRest
-                          ? Colors.white24
-                          : hasExercises
-                              ? Colors.white
-                              : Colors.white12,
-                  size: 20,
-                ),
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    day.name,
+                    style: TextStyle(
+                      color: nameColor,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: TextStyle(color: subtitleColor, fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
+            const SizedBox(width: 12),
+            btn,
           ],
         ),
       ),
@@ -618,61 +543,74 @@ class _CompactDayCard extends StatelessWidget {
   }
 }
 
-// ── Thin Day Strip (7th day) ───────────────────────────────────────────────────
+// ── Compact Grid Card (Next Week) ──────────────────────────────────────────────
 
-class _ThinDayCard extends StatelessWidget {
+class _GridWorkoutCard extends StatelessWidget {
   final WorkoutDay day;
-  final bool isDone;
+  final _CardState state;
+  final String dayLabel;
   final VoidCallback? onTap;
-  const _ThinDayCard({
+  const _GridWorkoutCard({
     required this.day,
-    required this.isDone,
+    required this.state,
+    required this.dayLabel,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final weekdayLabel = _weekdayStr(day.weekdays);
+    final isRest = day.isRestDay;
+    final isDone = state == _CardState.completed;
+    final muted = isDone || isRest;
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
         decoration: BoxDecoration(
-          color: const Color(0xFF161618),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF242426), width: 1),
+          color: muted ? const Color(0xFF111316) : const Color(0xFF161618),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: muted ? const Color(0xFF1E2026) : const Color(0xFF242426),
+          ),
         ),
         child: Row(
           children: [
-            Text(
-              day.name,
-              style: TextStyle(
-                color: isDone ? const Color(0xFF7FA8C8) : Colors.white38,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    dayLabel,
+                    style: TextStyle(
+                      color: muted ? Colors.white24 : Colors.white30,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    day.name,
+                    style: TextStyle(
+                      color: muted ? Colors.white30 : Colors.white54,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
-            if (weekdayLabel.isNotEmpty) ...[
-              const SizedBox(width: 8),
-              const Text('·',
-                  style: TextStyle(color: Colors.white24, fontSize: 12)),
-              const SizedBox(width: 8),
-              Text(weekdayLabel,
-                  style: const TextStyle(
-                      color: Colors.white24,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500)),
-            ],
-            const Spacer(),
             Icon(
               isDone
                   ? Icons.check_rounded
-                  : day.isRestDay
+                  : isRest
                       ? Icons.bedtime_outlined
                       : Icons.play_arrow_rounded,
-              color: isDone ? const Color(0xFF7FA8C8) : Colors.white12,
-              size: 16,
+              color: muted ? Colors.white24 : Colors.white30,
+              size: 18,
             ),
           ],
         ),
@@ -717,7 +655,6 @@ class _NoDaysState extends StatelessWidget {
 
 List<WorkoutDay> _reorderFromToday(List<WorkoutDay> days, int today) {
   if (days.length < 2) return days;
-  // If any day has no weekday assignment, keep original order
   if (days.any((d) => d.weekdays.isEmpty)) return days;
   final sorted = [...days];
   sorted.sort((a, b) {
@@ -728,11 +665,13 @@ List<WorkoutDay> _reorderFromToday(List<WorkoutDay> days, int today) {
   return sorted;
 }
 
-String _weekdayStr(List<int> weekdays) {
-  const names = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  if (weekdays.isEmpty) return '';
-  final sorted = [...weekdays]..sort();
-  return sorted.map((d) => names[d]).join(' · ');
+String _dayAbbr(WorkoutDay d, int today) {
+  const abbrs = ['', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+  if (d.weekdays.isEmpty) return '';
+  final sorted = [...d.weekdays]..sort();
+  final thisWeek = sorted.where((w) => w >= today).toList();
+  final wd = thisWeek.isNotEmpty ? thisWeek.first : sorted.first;
+  return abbrs[wd];
 }
 
 String _dateKey(DateTime d) =>

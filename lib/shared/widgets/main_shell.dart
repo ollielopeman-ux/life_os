@@ -77,18 +77,7 @@ class _MainShellState extends State<MainShell> {
             ),
             child: widget.child,
           ),
-          // ── Checklist circle — hidden on calendar and body pages ──────────────
-          if (currentIndex != 2 && currentIndex != 3)
-            Positioned(
-              left: _barHPad,
-              bottom: _barMargin + bottomInset + _barHeight + 10,
-              child: _GlassCircleBtn(
-                icon: Icons.checklist_rounded,
-                selected: currentIndex == 4,
-                onTap: () => context.go('/checklist'),
-              ),
-            ),
-          // ── Horizontal bar (5 icons) + edit circle ─────────────────────────────
+          // ── Horizontal bar (6 icons) + edit circle ─────────────────────────────
           Positioned(
             left: _barHPad,
             right: _barHPad,
@@ -108,6 +97,8 @@ class _MainShellState extends State<MainShell> {
                         context.go('/schedule');
                       case 3:
                         context.go('/body');
+                      case 4:
+                        context.go('/checklist');
                       case 5:
                         context.go('/reading');
                     }
@@ -223,7 +214,7 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
   List<TimeOfDay> get _nextHours {
     final now = TimeOfDay.now();
     return List.generate(
-        5, (i) => TimeOfDay(hour: (now.hour + i + 1) % 24, minute: 0));
+        7, (i) => TimeOfDay(hour: (now.hour + i + 1) % 24, minute: 0));
   }
 
   String _hourKey(TimeOfDay t) =>
@@ -327,71 +318,104 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    focusNode: _focusNode,
-                    autofocus: true,
-                    minLines: 2,
-                    maxLines: 4,
-                    style:
-                        const TextStyle(color: Colors.white, fontSize: 18),
-                    decoration: const InputDecoration(
-                      hintText: "Add to today's checklist...",
-                      hintStyle: TextStyle(color: Colors.white38, fontSize: 18),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    textCapitalization: TextCapitalization.sentences,
-                    onSubmitted: (_) => _submit(),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: _submit,
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF6E96C0), Color(0xFF3C618A)],
+            SizedBox(
+              height: 48,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      autofocus: true,
+                      maxLines: 1,
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                      decoration: const InputDecoration(
+                        hintText: "Add to today's checklist...",
+                        hintStyle:
+                            TextStyle(color: Colors.white38, fontSize: 16),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding:
+                            EdgeInsets.symmetric(vertical: 14),
                       ),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF5B7FA8).withValues(alpha: 0.4),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
+                      textCapitalization: TextCapitalization.sentences,
+                      onSubmitted: (_) => _submit(),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: _submit,
+                    child: Container(
+                      width: 48,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF6E96C0), Color(0xFF3C618A)],
                         ),
-                      ],
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.18),
-                        width: 0.8,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF5B7FA8).withValues(alpha: 0.4),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          width: 0.8,
+                        ),
                       ),
+                      child: const Icon(Icons.arrow_upward_rounded,
+                          color: Colors.white, size: 22),
                     ),
-                    child: const Icon(Icons.arrow_upward_rounded,
-                        color: Colors.white, size: 22),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 14),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  ...hours.map((t) {
-                    final key = _hourKey(t);
-                    final sel = _selectedTime == key;
-                    return Padding(
+            // Row 1: first 5 upcoming hours
+            Row(
+              children: hours.sublist(0, 5).map((t) {
+                final key = _hourKey(t);
+                final sel = _selectedTime == key;
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: _TimeChip(
+                      label: _fmtHour(t),
+                      selected: sel,
+                      onTap: () {
+                        final hasText = _controller.text.trim().isNotEmpty;
+                        if (!sel && hasText) {
+                          setState(() => _selectedTime = key);
+                          _submit();
+                        } else {
+                          setState(() {
+                            _selectedTime = sel ? null : key;
+                            _showCustom = false;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 6),
+            // Row 2: hours 6 & 7 + wide Custom chip
+            Row(
+              children: [
+                ...hours.sublist(5, 7).map((t) {
+                  final key = _hourKey(t);
+                  final sel = _selectedTime == key;
+                  return Expanded(
+                    child: Padding(
                       padding: const EdgeInsets.only(right: 6),
-                      child: GestureDetector(
+                      child: _TimeChip(
+                        label: _fmtHour(t),
+                        selected: sel,
                         onTap: () {
                           final hasText = _controller.text.trim().isNotEmpty;
                           if (!sel && hasText) {
@@ -404,75 +428,24 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
                             });
                           }
                         },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 13, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: sel
-                                ? const Color(0xFF5B7FA8)
-                                    .withValues(alpha: 0.18)
-                                : const Color(0xFF2C2C2E),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: sel
-                                  ? const Color(0xFF5B7FA8)
-                                      .withValues(alpha: 0.7)
-                                  : Colors.transparent,
-                            ),
-                          ),
-                          child: Text(
-                            _fmtHour(t),
-                            style: TextStyle(
-                              color: sel
-                                  ? const Color(0xFF5B7FA8)
-                                  : Colors.white54,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
                       ),
-                    );
-                  }),
-                  GestureDetector(
+                    ),
+                  );
+                }),
+                Expanded(
+                  flex: 3,
+                  child: _TimeChip(
+                    label: _customTimeActive && !_showCustom
+                        ? _fmtTime(_selectedTime!)
+                        : 'Custom',
+                    selected: _showCustom || _customTimeActive,
                     onTap: () => setState(() {
                       _showCustom = !_showCustom;
                       if (!_showCustom) _customController.clear();
                     }),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 13, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: (_showCustom || _customTimeActive)
-                            ? const Color(0xFF5B7FA8)
-                                .withValues(alpha: 0.18)
-                            : const Color(0xFF2C2C2E),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: (_showCustom || _customTimeActive)
-                              ? const Color(0xFF5B7FA8)
-                                  .withValues(alpha: 0.7)
-                              : Colors.transparent,
-                        ),
-                      ),
-                      child: Text(
-                        _customTimeActive && !_showCustom
-                            ? _fmtTime(_selectedTime!)
-                            : 'Custom',
-                        style: TextStyle(
-                          color: (_showCustom || _customTimeActive)
-                              ? const Color(0xFF5B7FA8)
-                              : Colors.white54,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
             if (_showCustom) ...[
               const SizedBox(height: 10),
@@ -537,54 +510,39 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
   }
 }
 
-// ── Glass Circle Button (checklist above bar) ──────────────────────────────────
+// ── Time Chip ─────────────────────────────────────────────────────────────────
 
-class _GlassCircleBtn extends StatelessWidget {
-  final IconData icon;
+class _TimeChip extends StatelessWidget {
+  final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _GlassCircleBtn(
-      {required this.icon, required this.selected, required this.onTap});
+  const _TimeChip({required this.label, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 52,
-      height: 52,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
-            blurRadius: 22,
-            offset: const Offset(0, 8),
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(0xFF5B7FA8).withValues(alpha: 0.18)
+              : const Color(0xFF2C2C2E),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected
+                ? const Color(0xFF5B7FA8).withValues(alpha: 0.7)
+                : Colors.transparent,
           ),
-        ],
-      ),
-      child: ClipOval(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: GestureDetector(
-            onTap: onTap,
-            child: Container(
-              decoration: BoxDecoration(
-                color: selected
-                    ? const Color(0xFF5B7FA8).withValues(alpha: 0.25)
-                    : const Color(0xFF1C1C1E).withValues(alpha: 0.94),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: selected
-                      ? const Color(0xFF5B7FA8).withValues(alpha: 0.6)
-                      : Colors.white.withValues(alpha: 0.08),
-                  width: 0.5,
-                ),
-              ),
-              child: Icon(icon,
-                  color: selected
-                      ? const Color(0xFF5B7FA8)
-                      : Colors.white,
-                  size: 22),
-            ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: selected ? const Color(0xFF5B7FA8) : Colors.white54,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -592,7 +550,7 @@ class _GlassCircleBtn extends StatelessWidget {
   }
 }
 
-// ── Glass Nav Pill (5 icons — gym, cardio, calendar, body, reading) ────────────
+// ── Glass Nav Pill (6 icons — gym, cardio, calendar, body, checklist, reading) ──
 
 class _GlassNavPill extends StatelessWidget {
   final int currentIndex;
@@ -632,6 +590,11 @@ class _GlassNavPill extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _NavIcon(
+                  icon: Icons.checklist_rounded,
+                  selected: currentIndex == 4,
+                  onTap: () => onTap(4),
+                ),
+                _NavIcon(
                   icon: Icons.fitness_center,
                   selected: currentIndex == 0,
                   onTap: () => onTap(0),
@@ -642,9 +605,9 @@ class _GlassNavPill extends StatelessWidget {
                   onTap: () => onTap(1),
                 ),
                 _NavIcon(
-                  icon: Icons.calendar_month,
-                  selected: currentIndex == 2,
-                  onTap: () => onTap(2),
+                  icon: Icons.menu_book_outlined,
+                  selected: currentIndex == 5,
+                  onTap: () => onTap(5),
                 ),
                 _NavIcon(
                   icon: Icons.monitor_weight_outlined,
@@ -652,9 +615,9 @@ class _GlassNavPill extends StatelessWidget {
                   onTap: () => onTap(3),
                 ),
                 _NavIcon(
-                  icon: Icons.menu_book_outlined,
-                  selected: currentIndex == 5,
-                  onTap: () => onTap(5),
+                  icon: Icons.calendar_month,
+                  selected: currentIndex == 2,
+                  onTap: () => onTap(2),
                 ),
               ],
             ),
@@ -684,13 +647,13 @@ class _NavIcon extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
-        width: 44,
+        width: 40,
         height: 44,
         decoration: BoxDecoration(
           color: selected ? const Color(0xFF3A3A3C) : Colors.transparent,
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(20),
         ),
-        child: Icon(icon, color: Colors.white, size: 21),
+        child: Icon(icon, color: Colors.white, size: 20),
       ),
     );
   }

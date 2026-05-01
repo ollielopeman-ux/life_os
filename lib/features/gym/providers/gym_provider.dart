@@ -90,14 +90,14 @@ class GymNotifier extends Notifier<GymState> {
         ));
   }
 
-  void addExercise(String splitId, String dayId, String name, double usualWeight, int usualReps) {
+  void addExercise(String splitId, String dayId, String name, double usualWeight, int usualReps, {int usualSets = 3}) {
     _updateSplit(splitId, (s) => s.copyWith(
           days: s.days
               .map((d) => d.id != dayId
                   ? d
                   : d.copyWith(exercises: [
                       ...d.exercises,
-                      ExerciseTemplate(name: name, usualWeight: usualWeight, usualReps: usualReps),
+                      ExerciseTemplate(name: name, usualWeight: usualWeight, usualReps: usualReps, usualSets: usualSets),
                     ]))
               .toList(),
         ));

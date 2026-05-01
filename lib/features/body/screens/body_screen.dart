@@ -51,7 +51,6 @@ class _BodyScreenState extends ConsumerState<BodyScreen> {
     final weightEntries = entries.where((e) => e.weight != null).toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF161618),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

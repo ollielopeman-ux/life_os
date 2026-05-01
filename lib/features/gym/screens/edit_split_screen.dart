@@ -61,10 +61,8 @@ class _EditSplitScreenState extends ConsumerState<EditSplitScreen>
     final isSplitsTab = _tabs.index == 0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF161618),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF161618),
-        elevation: 0,
+          elevation: 0,
         title: const Text('Edit'),
         actions: [
           IconButton(

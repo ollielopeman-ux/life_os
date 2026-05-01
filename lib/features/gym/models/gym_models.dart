@@ -58,12 +58,14 @@ class ExerciseTemplate {
   final String name;
   final double usualWeight;
   final int usualReps;
+  final int usualSets;
   final List<SetEntry> history;
 
   ExerciseTemplate({
     required this.name,
     this.usualWeight = 20.0,
     this.usualReps = 8,
+    this.usualSets = 3,
     List<SetEntry>? history,
   }) : history = history ?? [];
 
@@ -71,6 +73,7 @@ class ExerciseTemplate {
         'name': name,
         'usualWeight': usualWeight,
         'usualReps': usualReps,
+        'usualSets': usualSets,
         'history': history.map((s) => s.toMap()).toList(),
       };
 
@@ -78,15 +81,17 @@ class ExerciseTemplate {
         name: map['name'] as String,
         usualWeight: (map['usualWeight'] as num?)?.toDouble() ?? 20.0,
         usualReps: (map['usualReps'] as int?) ?? 8,
+        usualSets: (map['usualSets'] as int?) ?? 3,
         history:
             (map['history'] as List? ?? []).map((s) => SetEntry.fromMap(s as Map)).toList(),
       );
 
-  ExerciseTemplate copyWith({double? usualWeight, int? usualReps, List<SetEntry>? history}) =>
+  ExerciseTemplate copyWith({double? usualWeight, int? usualReps, int? usualSets, List<SetEntry>? history}) =>
       ExerciseTemplate(
         name: name,
         usualWeight: usualWeight ?? this.usualWeight,
         usualReps: usualReps ?? this.usualReps,
+        usualSets: usualSets ?? this.usualSets,
         history: history ?? this.history,
       );
 }

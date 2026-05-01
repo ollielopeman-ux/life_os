@@ -78,7 +78,7 @@ class ActiveWorkoutNotifier extends Notifier<ActiveWorkoutState?> {
     state = _copy(currentIndex: idx, selectedWeight: ex.usualWeight, selectedReps: ex.usualReps);
   }
 
-  void endWorkout() {
+  void endWorkout({String? rating, String? location, int? durationMinutes}) {
     if (state == null) return;
     final w = state!;
     final gymState = ref.read(gymProvider);
@@ -114,6 +114,11 @@ class ActiveWorkoutNotifier extends Notifier<ActiveWorkoutState?> {
       }
     }
 
+    // Compute missed exercises (in plan but zero sets logged)
+    final loggedNames = w.sessionSets.keys.toSet();
+    final allNames = w.day.exercises.map((e) => e.name).toSet();
+    final missed = allNames.difference(loggedNames).toList();
+
     // Build workout summary for schedule
     final setsMap = w.sessionSets.map((name, sets) =>
         MapEntry(name, sets.map((s) => {'weight': s.weight, 'reps': s.reps}).toList()));
@@ -122,7 +127,14 @@ class ActiveWorkoutNotifier extends Notifier<ActiveWorkoutState?> {
       '${w.day.name} · Gym',
       DateTime.now(),
       done: true,
-      workoutData: {'sets': setsMap, 'prs': prsBroken},
+      workoutData: {
+        'sets': setsMap,
+        'prs': prsBroken,
+        'rating': rating,
+        'location': location,
+        'durationMinutes': durationMinutes,
+        'missedExercises': missed,
+      },
     );
 
     state = null;

@@ -13,10 +13,8 @@ class PRScreen extends ConsumerWidget {
     final prs = _computePRs(gym);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF161618),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF161618),
-        elevation: 0,
+          elevation: 0,
         title: const Text('Personal Records'),
       ),
       body: prs.isEmpty

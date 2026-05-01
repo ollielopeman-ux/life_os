@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../providers/active_workout_provider.dart';
 import '../models/gym_models.dart';
+import '../../../shared/services/location_service.dart';
 
 class ActiveWorkoutScreen extends ConsumerStatefulWidget {
   const ActiveWorkoutScreen({super.key});
@@ -37,6 +38,52 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
     return '$m:$s';
   }
 
+  Future<({String? rating, String? location})?> _askRating() {
+    final workout = ref.read(activeWorkoutProvider);
+    double totalWeight = 0;
+    int newPrs = 0;
+
+    if (workout != null) {
+      for (final ex in workout.day.exercises) {
+        final sets = workout.setsFor(ex.name);
+        for (final s in sets) {
+          totalWeight += s.weight * s.reps;
+        }
+        if (sets.isNotEmpty) {
+          final sessionBest = sets.reduce((a, b) =>
+              a.weight > b.weight ||
+                      (a.weight == b.weight && a.reps >= b.reps)
+                  ? a
+                  : b);
+          if (ex.history.isNotEmpty) {
+            final histBest = ex.history.reduce((a, b) =>
+                a.weight > b.weight ||
+                        (a.weight == b.weight && a.reps >= b.reps)
+                    ? a
+                    : b);
+            if (sessionBest.weight > histBest.weight ||
+                (sessionBest.weight == histBest.weight &&
+                    sessionBest.reps > histBest.reps)) {
+              newPrs++;
+            }
+          } else {
+            newPrs++;
+          }
+        }
+      }
+    }
+
+    return showDialog<({String? rating, String? location})>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _RatingDialog(
+        elapsed: _elapsed,
+        totalWeightKg: totalWeight > 0 ? totalWeight : null,
+        newPrCount: newPrs,
+      ),
+    );
+  }
+
   // X button menu — tap outside to dismiss
   void _showCancelSheet() {
     final workout = ref.read(activeWorkoutProvider);
@@ -63,9 +110,14 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
                   label: 'End Workout',
                   subtitle: 'Save and finish',
                   color: const Color(0xFF5B7FA8),
-                  onTap: () {
-                    ref.read(activeWorkoutProvider.notifier).endWorkout();
+                  onTap: () async {
                     Navigator.of(dlgCtx).pop();
+                    final res = await _askRating();
+                    if (!mounted) return;
+                    ref.read(activeWorkoutProvider.notifier).endWorkout(
+                      rating: res?.rating, location: res?.location,
+                      durationMinutes: _stopwatch.elapsed.inMinutes,
+                    );
                     Navigator.of(context).pop();
                   },
                 ),
@@ -76,9 +128,14 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
                   label: 'Finish Early',
                   subtitle: 'Save progress so far',
                   color: const Color(0xFF5B7FA8),
-                  onTap: () {
-                    ref.read(activeWorkoutProvider.notifier).endWorkout();
+                  onTap: () async {
                     Navigator.of(dlgCtx).pop();
+                    final res = await _askRating();
+                    if (!mounted) return;
+                    ref.read(activeWorkoutProvider.notifier).endWorkout(
+                      rating: res?.rating, location: res?.location,
+                      durationMinutes: _stopwatch.elapsed.inMinutes,
+                    );
                     Navigator.of(context).pop();
                   },
                 ),
@@ -158,9 +215,14 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
               label: 'Save & End',
               subtitle: 'Finish and save all logged sets',
               color: const Color(0xFF5B7FA8),
-              onTap: () {
-                ref.read(activeWorkoutProvider.notifier).endWorkout();
+              onTap: () async {
                 Navigator.of(sheetCtx).pop();
+                final res = await _askRating();
+                if (!mounted) return;
+                ref.read(activeWorkoutProvider.notifier).endWorkout(
+                  rating: res?.rating, location: res?.location,
+                  durationMinutes: _stopwatch.elapsed.inMinutes,
+                );
                 Navigator.of(context).pop();
               },
             ),
@@ -207,22 +269,13 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
     // Null only if something unexpected happened — show blank, no auto-pop
     // (auto-pop caused double-pop crash; all exits are explicit via _showOptionsSheet)
     if (workout == null) {
-      return const Scaffold(backgroundColor: Color(0xFF161618));
+      return const Scaffold();
     }
 
     final exercise = workout.currentExercise;
     final exercises = workout.day.exercises;
     final idx = workout.currentIndex;
     final sessionSets = workout.setsFor(exercise.name);
-
-    final weightOptions = [
-      exercise.usualWeight - 7.5,
-      exercise.usualWeight - 5,
-      exercise.usualWeight - 2.5,
-      exercise.usualWeight,
-      exercise.usualWeight + 2.5,
-      exercise.usualWeight + 5,
-    ].where((w) => w >= 0).toList();
 
     const repOptions = [5, 6, 8, 10, 12, 15];
 
@@ -235,6 +288,16 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
                 : b)
         : null;
 
+    final weightOptions = [
+      exercise.usualWeight - 5,
+      exercise.usualWeight - 2.5,
+      exercise.usualWeight,
+      exercise.usualWeight + 2.5,
+      exercise.usualWeight + 5,
+    ].where((w) => w >= 0).toList();
+    // Gold "PR challenge" button: PR weight + 2.5kg (before Custom)
+    final prChallengeWeight = prSet != null ? prSet.weight + 2.5 : null;
+
     final wRow1 = weightOptions.take(4).toList();
     final wRow2 = weightOptions.skip(4).toList();
     const rRow1 = [5, 6, 8, 10];
@@ -246,7 +309,6 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
         if (!didPop) _showCancelSheet();
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF161618),
         body: SafeArea(
           child: Column(
             children: [
@@ -393,6 +455,13 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
                             fontWeight: FontWeight.w700,
                             color: Colors.white),
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${exercise.usualSets} sets · ${exercise.usualReps} reps',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 13),
+                      ),
                       const SizedBox(height: 10),
 
                       if (prSet != null)
@@ -401,25 +470,29 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 5),
                           decoration: BoxDecoration(
-                            border: Border.all(
-                                color: const Color(0xFFFFD700)
-                                    .withValues(alpha: 0.6)),
+                            gradient: const LinearGradient(
+                              colors: [Color(0x22D4AF37), Color(0x0EFFE066)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                             borderRadius: BorderRadius.circular(8),
-                            color:
-                                const Color(0xFFFFD700).withValues(alpha: 0.06),
+                            border: Border.all(
+                                color: const Color(0xFFD4AF37)
+                                    .withValues(alpha: 0.6),
+                                width: 0.8),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               const Icon(Icons.emoji_events,
-                                  color: Color(0xFFFFD700), size: 13),
+                                  color: Color(0xFFD4AF37), size: 13),
                               const SizedBox(width: 5),
                               Text(
                                 'PR  ${_fmtW(prSet.weight)}kg × ${prSet.reps}',
                                 style: const TextStyle(
-                                  color: Color(0xFFFFD700),
+                                  color: Color(0xFFD4AF37),
                                   fontSize: 12,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ],
@@ -471,12 +544,25 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
                                     .selectWeight(w),
                               ),
                             ),
+                          if (prChallengeWeight != null)
+                            Expanded(
+                              child: _GridBtn(
+                                label: _fmtW(prChallengeWeight),
+                                selected: workout.selectedWeight ==
+                                    prChallengeWeight,
+                                special: true,
+                                onTap: () => ref
+                                    .read(activeWorkoutProvider.notifier)
+                                    .selectWeight(prChallengeWeight),
+                              ),
+                            ),
                           Expanded(
                             flex: 2,
                             child: _GridBtn(
                               label: 'Custom',
-                              selected:
-                                  !weightOptions.contains(workout.selectedWeight),
+                              selected: !weightOptions
+                                      .contains(workout.selectedWeight) &&
+                                  workout.selectedWeight != prChallengeWeight,
                               onTap: () =>
                                   _customWeightDialog(workout.selectedWeight),
                             ),
@@ -723,44 +809,72 @@ class _Chip extends StatelessWidget {
 class _GridBtn extends StatelessWidget {
   final String label;
   final bool selected;
+  final bool special;
   final VoidCallback onTap;
-  const _GridBtn({required this.label, required this.selected, required this.onTap});
+  const _GridBtn({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.special = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final BoxDecoration deco;
+    final Color textColor;
+
+    if (selected) {
+      deco = BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF6E96C0), Color(0xFF3C618A)],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF5B7FA8).withValues(alpha: 0.35),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.18),
+          width: 0.8,
+        ),
+      );
+      textColor = Colors.white;
+    } else if (special) {
+      deco = BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0x22D4AF37), Color(0x10FFE066)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: const Color(0xFFD4AF37).withValues(alpha: 0.55),
+            width: 0.8),
+      );
+      textColor = const Color(0xFFD4AF37);
+    } else {
+      deco = BoxDecoration(
+        color: const Color(0xFF242428),
+        borderRadius: BorderRadius.circular(12),
+      );
+      textColor = Colors.white;
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.all(3),
         padding: const EdgeInsets.symmetric(vertical: 13),
-        decoration: selected
-            ? BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF6E96C0), Color(0xFF3C618A)],
-                ),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF5B7FA8).withValues(alpha: 0.35),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  width: 0.8,
-                ),
-              )
-            : BoxDecoration(
-                color: const Color(0xFF242428),
-                borderRadius: BorderRadius.circular(12),
-              ),
+        decoration: deco,
         child: Center(
           child: Text(label,
-              style: const TextStyle(
-                  color: Colors.white,
+              style: TextStyle(
+                  color: textColor,
                   fontWeight: FontWeight.w600,
                   fontSize: 15)),
         ),
@@ -787,6 +901,156 @@ class _NavBtn extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(icon, color: enabled ? Colors.white : Colors.white12, size: 28),
+      ),
+    );
+  }
+}
+
+// ── Rating Dialog ──────────────────────────────────────────────────────────────
+
+class _RatingDialog extends StatefulWidget {
+  final String elapsed;
+  final double? totalWeightKg;
+  final int newPrCount;
+  const _RatingDialog({
+    required this.elapsed,
+    this.totalWeightKg,
+    required this.newPrCount,
+  });
+  @override
+  State<_RatingDialog> createState() => _RatingDialogState();
+}
+
+class _RatingDialogState extends State<_RatingDialog> {
+  String? _location;
+
+  @override
+  void initState() {
+    super.initState();
+    LocationService.fetchPlaceName()
+        .then((v) { if (mounted) setState(() => _location = v); });
+  }
+
+  void _submit(String rating) =>
+      Navigator.pop(context, (rating: rating, location: _location));
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 26),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1C1C1E),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Stats row
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                _StatChip(label: widget.elapsed, icon: Icons.timer_outlined),
+                if (widget.totalWeightKg != null)
+                  _StatChip(
+                      label:
+                          '${widget.totalWeightKg!.toStringAsFixed(0)}kg',
+                      icon: Icons.fitness_center),
+                if (widget.newPrCount > 0)
+                  _StatChip(
+                      label:
+                          '${widget.newPrCount} PR${widget.newPrCount > 1 ? 's' : ''}',
+                      icon: Icons.emoji_events_outlined,
+                      color: const Color(0xFFFFD60A)),
+              ],
+            ),
+            const SizedBox(height: 22),
+            const Text('How was it?',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _RatingBtn(
+                    icon: Icons.sentiment_very_dissatisfied,
+                    color: const Color(0xFFFF453A),
+                    onTap: () => _submit('red')),
+                _RatingBtn(
+                    icon: Icons.sentiment_neutral,
+                    color: const Color(0xFFFF9F0A),
+                    onTap: () => _submit('yellow')),
+                _RatingBtn(
+                    icon: Icons.sentiment_very_satisfied,
+                    color: const Color(0xFF34C759),
+                    onTap: () => _submit('green')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color? color;
+  const _StatChip({required this.label, required this.icon, this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = color ?? Colors.white70;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: (color ?? Colors.white).withValues(alpha: color != null ? 0.08 : 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: color != null
+            ? Border.all(color: color!.withValues(alpha: 0.3))
+            : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: c.withValues(alpha: 0.7)),
+          const SizedBox(width: 5),
+          Text(label,
+              style: TextStyle(
+                  color: c, fontSize: 12, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+}
+
+class _RatingBtn extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  const _RatingBtn(
+      {required this.icon, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 68,
+        height: 68,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          shape: BoxShape.circle,
+          border: Border.all(color: color.withValues(alpha: 0.4), width: 1.5),
+        ),
+        child: Icon(icon, color: color, size: 32),
       ),
     );
   }

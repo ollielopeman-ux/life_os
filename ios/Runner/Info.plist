@@ -7,7 +7,15 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Life Os</string>
+	<string>OAL OS</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Used to automatically tag your workout location</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Used to select body progress photos</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Used to take body progress photos</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Used to save body progress photos</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

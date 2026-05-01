@@ -71,9 +71,13 @@ class NotificationService {
 
   /// Returns payload if app was cold-started by tapping a notification.
   Future<String?> getLaunchPayload() async {
-    final details = await _plugin.getNotificationAppLaunchDetails();
-    if (details?.didNotificationLaunchApp == true) {
-      return details?.notificationResponse?.payload;
+    try {
+      final details = await _plugin.getNotificationAppLaunchDetails();
+      if (details?.didNotificationLaunchApp == true) {
+        return details?.notificationResponse?.payload;
+      }
+    } catch (_) {
+      // Platform (e.g. Windows) may not support launch details
     }
     return null;
   }
