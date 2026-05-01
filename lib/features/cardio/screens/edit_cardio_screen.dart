@@ -66,22 +66,13 @@ class _EditCardioScreenState extends ConsumerState<EditCardioScreen>
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final isCardioTab = _tabs.index == 0;
 
     return Scaffold(
       appBar: AppBar(
-          elevation: 0,
+        elevation: 0,
         title: const Text('Edit'),
-        bottom: TabBar(
-          controller: _tabs,
-          indicatorColor: const Color(0xFF5B7FA8),
-          indicatorSize: TabBarIndicatorSize.label,
-          labelColor: const Color(0xFF5B7FA8),
-          unselectedLabelColor: Colors.white38,
-          labelStyle:
-              const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-          tabs: const [Tab(text: 'CARDIO'), Tab(text: 'PLYO')],
-        ),
       ),
       floatingActionButton: GestureDetector(
         onTap: isCardioTab ? _addCardioPlanDialog : _addPlyoWorkoutDialog,
@@ -89,33 +80,89 @@ class _EditCardioScreenState extends ConsumerState<EditCardioScreen>
           width: 56,
           height: 56,
           decoration: BoxDecoration(
+            color: accent,
             shape: BoxShape.circle,
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF6E96C0), Color(0xFF3C618A)],
-            ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF5B7FA8).withValues(alpha: 0.45),
+                color: accent.withValues(alpha: 0.4),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
             ],
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.18),
-              width: 0.8,
-            ),
           ),
           child: const Icon(Icons.add_rounded, color: Colors.white, size: 26),
         ),
       ),
-      body: TabBarView(
-        controller: _tabs,
+      body: Column(
         children: [
-          _CardioTab(),
-          _PlyoTab(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+            child: Container(
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2C2C2E),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  _TabPill(
+                    label: 'Cardio',
+                    selected: _tabs.index == 0,
+                    onTap: () => _tabs.animateTo(0),
+                  ),
+                  _TabPill(
+                    label: 'Plyo',
+                    selected: _tabs.index == 1,
+                    onTap: () => _tabs.animateTo(1),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabs,
+              children: [
+                _CardioTab(),
+                _PlyoTab(),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _TabPill extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _TabPill({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          margin: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF48484A) : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : Colors.white38,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -146,6 +193,7 @@ class _CardioSplitSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final accent = Theme.of(context).colorScheme.primary;
     final notifier = ref.read(cardioProvider.notifier);
 
     return Container(
@@ -155,7 +203,7 @@ class _CardioSplitSection extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         border: isSelected
             ? Border.all(
-                color: const Color(0xFF5B7FA8).withValues(alpha: 0.35))
+                color: accent.withValues(alpha: 0.35))
             : Border.all(color: const Color(0xFF2C2C2E)),
       ),
       child: Column(
@@ -172,9 +220,9 @@ class _CardioSplitSection extends ConsumerWidget {
                       Text(split.name,
                           style: Theme.of(context).textTheme.titleMedium),
                       if (split.isPrimary)
-                        const Text('PRIMARY',
+                        Text('PRIMARY',
                             style: TextStyle(
-                                color: Color(0xFF5B7FA8),
+                                color: accent,
                                 fontSize: 10,
                                 letterSpacing: 1.4)),
                     ],
@@ -443,6 +491,7 @@ class _AddSessionSheetState extends ConsumerState<_AddSessionSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return Container(
       padding: EdgeInsets.fromLTRB(
           24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 28),
@@ -482,7 +531,7 @@ class _AddSessionSheetState extends ConsumerState<_AddSessionSheet> {
                           horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         color: sel
-                            ? const Color(0xFF5B7FA8)
+                            ? accent
                             : const Color(0xFF242428),
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -573,7 +622,7 @@ class _AddSessionSheetState extends ConsumerState<_AddSessionSheet> {
                       height: 36,
                       decoration: BoxDecoration(
                         color: sel
-                            ? const Color(0xFF5B7FA8)
+                            ? accent
                             : const Color(0xFF2C2C2E),
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -663,6 +712,7 @@ class _AddPlyoExerciseSheetState extends ConsumerState<_AddPlyoExerciseSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return Container(
       padding: EdgeInsets.fromLTRB(
           24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 28),
@@ -728,12 +778,12 @@ class _AddPlyoExerciseSheetState extends ConsumerState<_AddPlyoExerciseSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: _videoPath != null
-                      ? const Color(0xFF5B7FA8).withValues(alpha: 0.12)
+                      ? accent.withValues(alpha: 0.12)
                       : const Color(0xFF242428),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: _videoPath != null
-                        ? const Color(0xFF5B7FA8).withValues(alpha: 0.5)
+                        ? accent.withValues(alpha: 0.5)
                         : const Color(0xFF3C3C3E),
                   ),
                 ),
@@ -744,7 +794,7 @@ class _AddPlyoExerciseSheetState extends ConsumerState<_AddPlyoExerciseSheet> {
                           ? Icons.videocam
                           : Icons.videocam_outlined,
                       color: _videoPath != null
-                          ? const Color(0xFF5B7FA8)
+                          ? accent
                           : Colors.white38,
                       size: 20,
                     ),
@@ -821,6 +871,7 @@ class _TextDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return AlertDialog(
       backgroundColor: const Color(0xFF242428),
       title: Text(title, style: const TextStyle(color: Colors.white)),
@@ -844,7 +895,7 @@ class _TextDialog extends StatelessWidget {
             onConfirm();
             Navigator.pop(context);
           },
-          child: const Text('Add', style: TextStyle(color: Color(0xFF5B7FA8))),
+          child: Text('Add', style: TextStyle(color: accent)),
         ),
       ],
     );

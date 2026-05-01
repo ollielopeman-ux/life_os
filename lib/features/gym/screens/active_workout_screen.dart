@@ -1,11 +1,13 @@
 ﻿import 'dart:async';
 import 'dart:math' show min;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../providers/active_workout_provider.dart';
 import '../models/gym_models.dart';
 import '../../../shared/services/location_service.dart';
+import '../../settings/providers/settings_provider.dart';
 
 class ActiveWorkoutScreen extends ConsumerStatefulWidget {
   const ActiveWorkoutScreen({super.key});
@@ -17,6 +19,8 @@ class ActiveWorkoutScreen extends ConsumerStatefulWidget {
 class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
   late final Stopwatch _stopwatch;
   Timer? _ticker;
+  int _restSecondsLeft = 0;
+  Timer? _restTimer;
 
   @override
   void initState() {
@@ -28,7 +32,37 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
   @override
   void dispose() {
     _ticker?.cancel();
+    _restTimer?.cancel();
     super.dispose();
+  }
+
+  void _startRestTimer() {
+    _restTimer?.cancel();
+    final seconds = ref.read(settingsProvider).restTimerSeconds;
+    if (seconds == 0) return;
+    setState(() => _restSecondsLeft = seconds);
+    _restTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        _restSecondsLeft--;
+        if (_restSecondsLeft <= 0) {
+          _restSecondsLeft = 0;
+          _restTimer?.cancel();
+          HapticFeedback.heavyImpact();
+        }
+      });
+    });
+  }
+
+  void _skipRest() {
+    _restTimer?.cancel();
+    setState(() => _restSecondsLeft = 0);
+  }
+
+  String get _restLabel {
+    final m = (_restSecondsLeft ~/ 60).toString().padLeft(2, '0');
+    final s = (_restSecondsLeft % 60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 
   String get _elapsed {
@@ -264,6 +298,7 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final workout = ref.watch(activeWorkoutProvider);
 
     // Null only if something unexpected happened — show blank, no auto-pop
@@ -288,12 +323,13 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
                 : b)
         : null;
 
+    final step = ref.watch(settingsProvider.select((s) => s.weightStep));
     final weightOptions = [
-      exercise.usualWeight - 5,
-      exercise.usualWeight - 2.5,
+      exercise.usualWeight - step * 2,
+      exercise.usualWeight - step,
       exercise.usualWeight,
-      exercise.usualWeight + 2.5,
-      exercise.usualWeight + 5,
+      exercise.usualWeight + step,
+      exercise.usualWeight + step * 2,
     ].where((w) => w >= 0).toList();
     // Gold "PR challenge" button: PR weight + 2.5kg (before Custom)
     final prChallengeWeight = prSet != null ? prSet.weight + 2.5 : null;
@@ -337,8 +373,8 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
                           const SizedBox(height: 2),
                           Text(
                             _elapsed,
-                            style: const TextStyle(
-                                color: Color(0xFF5B7FA8),
+                            style: TextStyle(
+                                color: accent,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600),
                           ),
@@ -410,7 +446,7 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
                                 borderRadius: BorderRadius.circular(12),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFF5B7FA8)
+                                    color: accent
                                         .withValues(alpha: 0.4),
                                     blurRadius: 12,
                                     offset: const Offset(0, 3),
@@ -626,13 +662,61 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
                 ),
               ),
 
+              // ── Rest timer banner ────────────────────────────────────────────
+              if (_restSecondsLeft > 0)
+                Container(
+                  margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1C2E1C),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF34C759).withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.timer_outlined, color: Color(0xFF34C759), size: 18),
+                      const SizedBox(width: 10),
+                      const Text('Rest', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                      const SizedBox(width: 8),
+                      Text(
+                        _restLabel,
+                        style: const TextStyle(
+                          color: Color(0xFF34C759),
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          fontFeatures: [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: _skipRest,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF34C759).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF34C759).withValues(alpha: 0.3)),
+                          ),
+                          child: const Text('Skip',
+                              style: TextStyle(
+                                  color: Color(0xFF34C759),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               // ── LOG SET button ───────────────────────────────────────────────
               Padding(
                 padding: EdgeInsets.fromLTRB(
                     20, 8, 20, MediaQuery.of(context).padding.bottom + 16),
                 child: GestureDetector(
-                  onTap: () =>
-                      ref.read(activeWorkoutProvider.notifier).logSet(),
+                  onTap: () {
+                    ref.read(activeWorkoutProvider.notifier).logSet();
+                    _startRestTimer();
+                  },
                   child: Container(
                     width: double.infinity,
                     height: 78,
@@ -645,7 +729,7 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF5B7FA8).withValues(alpha: 0.45),
+                          color: accent.withValues(alpha: 0.45),
                           blurRadius: 20,
                           offset: const Offset(0, 5),
                         ),
@@ -730,6 +814,7 @@ class _ExerciseHistory extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final allSets = [...exercise.history, ...sessionSets]
       ..sort((a, b) => a.date.compareTo(b.date));
 
@@ -765,12 +850,12 @@ class _ExerciseHistory extends StatelessWidget {
                   LineChartBarData(
                     spots: spots,
                     isCurved: true,
-                    color: const Color(0xFF5B7FA8),
+                    color: accent,
                     barWidth: 2,
                     dotData: FlDotData(show: spots.length <= 20),
                     belowBarData: BarAreaData(
                       show: true,
-                      color: const Color(0xFF5B7FA8).withValues(alpha: 0.08),
+                      color: accent.withValues(alpha: 0.08),
                     ),
                   ),
                 ],
@@ -820,6 +905,7 @@ class _GridBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final BoxDecoration deco;
     final Color textColor;
 
@@ -833,7 +919,7 @@ class _GridBtn extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF5B7FA8).withValues(alpha: 0.35),
+            color: accent.withValues(alpha: 0.35),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -1065,6 +1151,7 @@ class _InputDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return AlertDialog(
       backgroundColor: const Color(0xFF242428),
       title: Text(title, style: const TextStyle(color: Colors.white)),
@@ -1080,7 +1167,7 @@ class _InputDialog extends StatelessWidget {
             onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         TextButton(
           onPressed: () => Navigator.pop(context, double.tryParse(controller.text)),
-          child: const Text('Set', style: TextStyle(color: Color(0xFF5B7FA8))),
+          child: Text('Set', style: TextStyle(color: accent)),
         ),
       ],
     );

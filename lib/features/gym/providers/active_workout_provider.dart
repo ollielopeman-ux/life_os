@@ -10,6 +10,7 @@ class ActiveWorkoutState {
   final Map<String, List<SetEntry>> sessionSets;
   final double selectedWeight;
   final int selectedReps;
+  final bool isAdHoc;
 
   ActiveWorkoutState({
     required this.splitId,
@@ -18,6 +19,7 @@ class ActiveWorkoutState {
     required this.sessionSets,
     required this.selectedWeight,
     required this.selectedReps,
+    this.isAdHoc = false,
   });
 
   ExerciseTemplate get currentExercise => day.exercises[currentIndex];
@@ -39,6 +41,26 @@ class ActiveWorkoutNotifier extends Notifier<ActiveWorkoutState?> {
       sessionSets: {},
       selectedWeight: first.usualWeight,
       selectedReps: first.usualReps,
+    );
+  }
+
+  void startAdHocWorkout(List<ExerciseTemplate> exercises) {
+    if (exercises.isEmpty) return;
+    final day = WorkoutDay(
+      id: '__adhoc__',
+      name: 'Quick Session',
+      isRestDay: false,
+      weekdays: [],
+      exercises: exercises,
+    );
+    state = ActiveWorkoutState(
+      splitId: '__adhoc__',
+      day: day,
+      currentIndex: 0,
+      sessionSets: {},
+      selectedWeight: exercises[0].usualWeight,
+      selectedReps: exercises[0].usualReps,
+      isAdHoc: true,
     );
   }
 
@@ -106,11 +128,13 @@ class ActiveWorkoutNotifier extends Notifier<ActiveWorkoutState?> {
       }
     }
 
-    // Persist sets
-    for (final entry in w.sessionSets.entries) {
-      for (final set in entry.value) {
-        ref.read(gymProvider.notifier).logSet(
-            w.splitId, w.day.id, entry.key, set.weight, set.reps);
+    // Persist sets to exercise history (skip for ad-hoc: no real split/day)
+    if (!w.isAdHoc) {
+      for (final entry in w.sessionSets.entries) {
+        for (final set in entry.value) {
+          ref.read(gymProvider.notifier).logSet(
+              w.splitId, w.day.id, entry.key, set.weight, set.reps);
+        }
       }
     }
 

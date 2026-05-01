@@ -58,11 +58,12 @@ class _EditSplitScreenState extends ConsumerState<EditSplitScreen>
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final isSplitsTab = _tabs.index == 0;
 
     return Scaffold(
       appBar: AppBar(
-          elevation: 0,
+        elevation: 0,
         title: const Text('Edit'),
         actions: [
           IconButton(
@@ -73,15 +74,6 @@ class _EditSplitScreenState extends ConsumerState<EditSplitScreen>
             ),
           ),
         ],
-        bottom: TabBar(
-          controller: _tabs,
-          indicatorColor: const Color(0xFF5B7FA8),
-          indicatorSize: TabBarIndicatorSize.label,
-          labelColor: const Color(0xFF5B7FA8),
-          unselectedLabelColor: Colors.white38,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-          tabs: const [Tab(text: 'SPLITS'), Tab(text: 'EXERCISES')],
-        ),
       ),
       floatingActionButton: GestureDetector(
         onTap: isSplitsTab ? _addSplitDialog : _addExerciseDialog,
@@ -89,33 +81,98 @@ class _EditSplitScreenState extends ConsumerState<EditSplitScreen>
           width: 56,
           height: 56,
           decoration: BoxDecoration(
+            color: accent,
             shape: BoxShape.circle,
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF6E96C0), Color(0xFF3C618A)],
-            ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF5B7FA8).withValues(alpha: 0.45),
+                color: accent.withValues(alpha: 0.4),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
             ],
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.18),
-              width: 0.8,
-            ),
           ),
           child: const Icon(Icons.add_rounded, color: Colors.white, size: 26),
         ),
       ),
-      body: TabBarView(
-        controller: _tabs,
+      body: Column(
         children: [
-          _SplitsTab(),
-          _ExercisesTab(),
+          // Clean segmented tab selector — no AppBar bottom box
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+            child: Container(
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2C2C2E),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  _TabPill(
+                    label: 'Splits',
+                    selected: _tabs.index == 0,
+                    onTap: () => _tabs.animateTo(0),
+                    accent: accent,
+                  ),
+                  _TabPill(
+                    label: 'Exercises',
+                    selected: _tabs.index == 1,
+                    onTap: () => _tabs.animateTo(1),
+                    accent: accent,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabs,
+              children: [
+                _SplitsTab(),
+                _ExercisesTab(),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _TabPill extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color accent;
+  const _TabPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          margin: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF48484A) : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : Colors.white38,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -147,6 +204,7 @@ class _SplitSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final accent = Theme.of(context).colorScheme.primary;
     final notifier = ref.read(gymProvider.notifier);
 
     return Container(
@@ -155,7 +213,7 @@ class _SplitSection extends ConsumerWidget {
         color: const Color(0xFF1C1C1E),
         borderRadius: BorderRadius.circular(16),
         border: isSelected
-            ? Border.all(color: const Color(0xFF5B7FA8).withValues(alpha: 0.35))
+            ? Border.all(color: accent.withValues(alpha: 0.35))
             : Border.all(color: const Color(0xFF2C2C2E)),
       ),
       child: Column(
@@ -172,9 +230,9 @@ class _SplitSection extends ConsumerWidget {
                       Text(split.name,
                           style: Theme.of(context).textTheme.titleMedium),
                       if (split.isPrimary)
-                        const Text('PRIMARY',
+                        Text('PRIMARY',
                             style: TextStyle(
-                                color: Color(0xFF5B7FA8),
+                                color: accent,
                                 fontSize: 10,
                                 letterSpacing: 1.4)),
                     ],
@@ -355,6 +413,7 @@ class _ExercisePickerSheetState extends ConsumerState<_ExercisePickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final library = ref.watch(exerciseLibraryProvider);
     final gym = ref.watch(gymProvider);
     // Names already in this day
@@ -419,7 +478,7 @@ class _ExercisePickerSheetState extends ConsumerState<_ExercisePickerSheet> {
                     name: _query,
                     subtitle: 'Add to library & day',
                     icon: Icons.add_circle_outline,
-                    iconColor: const Color(0xFF5B7FA8),
+                    iconColor: accent,
                     onTap: () {
                       ref.read(exerciseLibraryProvider.notifier).add(_query);
                       final ex = ref
@@ -783,6 +842,7 @@ class _AddDaySheetState extends ConsumerState<_AddDaySheet> {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return Container(
       padding:
           EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 28),
@@ -813,8 +873,8 @@ class _AddDaySheetState extends ConsumerState<_AddDaySheet> {
               Switch(
                 value: _isRest,
                 onChanged: (v) => setState(() => _isRest = v),
-                activeThumbColor: const Color(0xFF5B7FA8),
-                activeTrackColor: const Color(0xFF5B7FA8).withValues(alpha: 0.3),
+                activeThumbColor: accent,
+                activeTrackColor: accent.withValues(alpha: 0.3),
               ),
             ],
           ),
@@ -838,7 +898,7 @@ class _AddDaySheetState extends ConsumerState<_AddDaySheet> {
                       height: 36,
                       decoration: BoxDecoration(
                         color: sel
-                            ? const Color(0xFF5B7FA8)
+                            ? accent
                             : const Color(0xFF2C2C2E),
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -987,6 +1047,7 @@ class _TextDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return AlertDialog(
       backgroundColor: const Color(0xFF242428),
       title: Text(title, style: const TextStyle(color: Colors.white)),
@@ -1010,8 +1071,8 @@ class _TextDialog extends StatelessWidget {
             onConfirm();
             Navigator.pop(context);
           },
-          child: const Text('Add',
-              style: TextStyle(color: Color(0xFF5B7FA8))),
+          child: Text('Add',
+              style: TextStyle(color: accent)),
         ),
       ],
     );

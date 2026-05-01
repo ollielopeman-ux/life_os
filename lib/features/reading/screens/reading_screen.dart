@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../models/book.dart';
 import '../providers/reading_provider.dart';
 import '../../../shared/services/notification_service.dart';
+import '../../settings/providers/settings_provider.dart';
 
 // ── Search result data class ───────────────────────────────────────────────────
 
@@ -94,14 +95,15 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     final want = books.where((b) => b.status == 'want').toList();
     final reading = books.where((b) => b.status == 'reading').toList();
     final done = books.where((b) => b.status == 'done').toList();
+    final pageTopPad = ref.watch(settingsProvider.select((s) => s.pageTopPad));
 
     return Scaffold(
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 20, 20, 0),
+            Padding(
+              padding: EdgeInsets.fromLTRB(20, pageTopPad, 20, 0),
               child: Center(
                 child: Text('READING',
                     style: TextStyle(
@@ -302,6 +304,7 @@ class _ReadingBookCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final progress = book.progressPercent;
     final days = book.daysReading;
 
@@ -320,7 +323,7 @@ class _ReadingBookCard extends StatelessWidget {
           color: const Color(0xFF1C1C1E),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-              color: const Color(0xFF5B7FA8).withValues(alpha: 0.2)),
+              color: accent.withValues(alpha: 0.2)),
         ),
         child: Row(
           children: [
@@ -374,8 +377,7 @@ class _ReadingBookCard extends StatelessWidget {
                       child: LinearProgressIndicator(
                         value: progress,
                         backgroundColor: const Color(0xFF2C2C2E),
-                        valueColor: const AlwaysStoppedAnimation(
-                            Color(0xFF5B7FA8)),
+                        valueColor: AlwaysStoppedAnimation(accent),
                         minHeight: 4,
                       ),
                     ),
@@ -395,23 +397,101 @@ class _ReadingBookCard extends StatelessWidget {
 
 // ── Done tab ───────────────────────────────────────────────────────────────────
 
-class _DoneTab extends StatelessWidget {
+class _DoneTab extends ConsumerWidget {
   final List<Book> books;
   const _DoneTab({required this.books});
 
   @override
-  Widget build(BuildContext context) {
-    if (books.isEmpty) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final goal = ref.watch(settingsProvider.select((s) => s.readingGoal));
+    final thisYear = DateTime.now().year;
+    final doneThisYear = books
+        .where((b) => b.completedDate?.year == thisYear)
+        .length;
+
+    if (books.isEmpty && goal == 0) {
       return const _EmptyState(
         icon: Icons.check_circle_outline,
         message: 'No finished books yet',
         sub: 'Books you complete will appear here',
       );
     }
+
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-      itemCount: books.length,
-      itemBuilder: (_, i) => _DoneBookCard(book: books[i]),
+      itemCount: books.length + (goal > 0 ? 1 : 0),
+      itemBuilder: (_, i) {
+        if (goal > 0 && i == 0) {
+          return _AnnualGoalBanner(
+              done: doneThisYear, goal: goal, year: thisYear);
+        }
+        return _DoneBookCard(book: books[goal > 0 ? i - 1 : i]);
+      },
+    );
+  }
+}
+
+class _AnnualGoalBanner extends StatelessWidget {
+  final int done;
+  final int goal;
+  final int year;
+  const _AnnualGoalBanner(
+      {required this.done, required this.goal, required this.year});
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    final progress = (done / goal).clamp(0.0, 1.0);
+    final reached = done >= goal;
+    final color =
+        reached ? const Color(0xFF34C759) : accent;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                reached
+                    ? Icons.check_circle_outline
+                    : Icons.auto_stories_outlined,
+                color: color,
+                size: 15,
+              ),
+              const SizedBox(width: 8),
+              Text('$year Reading Goal',
+                  style: const TextStyle(
+                      color: Colors.white54, fontSize: 12)),
+              const Spacer(),
+              Text(
+                reached ? 'Goal reached!' : '$done / $goal books',
+                style: TextStyle(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: const Color(0xFF2C2C2E),
+              valueColor: AlwaysStoppedAnimation(color),
+              minHeight: 5,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -636,6 +716,7 @@ class _ReadingDetailSheetState
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final book = ref.watch(booksProvider).firstWhere(
           (b) => b.id == widget.book.id,
           orElse: () => widget.book,
@@ -730,8 +811,8 @@ class _ReadingDetailSheetState
                   const SizedBox(width: 16),
                   Text(
                     '${(progress * 100).toInt()}%',
-                    style: const TextStyle(
-                        color: Color(0xFF5B7FA8),
+                    style: TextStyle(
+                        color: accent,
                         fontSize: 28,
                         fontWeight: FontWeight.w700),
                   ),
@@ -746,18 +827,22 @@ class _ReadingDetailSheetState
                 child: LinearProgressIndicator(
                   value: progress,
                   backgroundColor: const Color(0xFF2C2C2E),
-                  valueColor:
-                      const AlwaysStoppedAnimation(Color(0xFF5B7FA8)),
+                  valueColor: AlwaysStoppedAnimation(accent),
                   minHeight: 8,
                 ),
               ),
               const SizedBox(height: 6),
-              if (book.currentPage != null && book.totalPages != null)
-                Text(
-                  '${book.totalPages! - book.currentPage!} pages remaining',
-                  style: const TextStyle(
-                      color: Colors.white38, fontSize: 12),
-                ),
+              if (book.currentPage != null && book.totalPages != null) ...[
+              Text(
+                '${book.totalPages! - book.currentPage!} pages remaining',
+                style: const TextStyle(
+                    color: Colors.white38, fontSize: 12),
+              ),
+              if (days > 1 && book.currentPage! > 0) ...[
+                const SizedBox(height: 10),
+                _ReadingPaceCard(book: book, days: days),
+              ],
+            ],
             ],
 
             const SizedBox(height: 32),
@@ -1142,6 +1227,7 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.82,
       child: Container(
@@ -1169,14 +1255,14 @@ class _SearchSheetState extends ConsumerState<_SearchSheet> {
                   borderSide: BorderSide.none,
                 ),
                 suffixIcon: _loading
-                    ? const Padding(
-                        padding: EdgeInsets.all(12),
+                    ? Padding(
+                        padding: const EdgeInsets.all(12),
                         child: SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Color(0xFF5B7FA8)),
+                              color: accent),
                         ),
                       )
                     : null,
@@ -1291,6 +1377,84 @@ class _SearchResultTile extends StatelessWidget {
             const Icon(Icons.add, color: Colors.white38, size: 20),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Reading Pace Card ──────────────────────────────────────────────────────────
+
+class _ReadingPaceCard extends StatelessWidget {
+  final Book book;
+  final int days;
+  const _ReadingPaceCard({required this.book, required this.days});
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    final pagesRead = book.currentPage ?? 0;
+    final pagesPerDay = days > 0 ? pagesRead / days : 0.0;
+
+    String? etaLabel;
+    if (pagesPerDay > 0 && book.totalPages != null) {
+      final remaining = book.totalPages! - pagesRead;
+      if (remaining > 0) {
+        final daysLeft = (remaining / pagesPerDay).ceil();
+        final eta = DateTime.now().add(Duration(days: daysLeft));
+        etaLabel = DateFormat('d MMM').format(eta);
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('PACE',
+                    style: TextStyle(
+                        color: Colors.white38, fontSize: 9, letterSpacing: 1.3)),
+                const SizedBox(height: 3),
+                Text(
+                  '${pagesPerDay.toStringAsFixed(1)} pages / day',
+                  style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+          if (etaLabel != null) ...[
+            Container(width: 1, height: 32, color: const Color(0xFF2C2C2E)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('FINISH BY',
+                      style: TextStyle(
+                          color: Colors.white38, fontSize: 9, letterSpacing: 1.3)),
+                  const SizedBox(height: 3),
+                  Text(
+                    etaLabel,
+                    style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -1413,22 +1577,23 @@ class _InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: const Color(0xFF5B7FA8).withValues(alpha: 0.12),
+        color: accent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-            color: const Color(0xFF5B7FA8).withValues(alpha: 0.3)),
+            color: accent.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 11, color: const Color(0xFF5B7FA8)),
+          Icon(icon, size: 11, color: accent),
           const SizedBox(width: 4),
           Text(label,
-              style: const TextStyle(
-                  color: Color(0xFF5B7FA8),
+              style: TextStyle(
+                  color: accent,
                   fontSize: 10,
                   fontWeight: FontWeight.w600)),
         ],

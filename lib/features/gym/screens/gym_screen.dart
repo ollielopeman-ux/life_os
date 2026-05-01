@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/gym_models.dart';
 import '../providers/gym_provider.dart';
 import '../providers/active_workout_provider.dart';
+import '../providers/exercise_library_provider.dart';
 import '../../schedule/providers/schedule_provider.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../../../shared/widgets/week_strip.dart';
 import 'active_workout_screen.dart';
 import 'edit_split_screen.dart';
-import 'pr_screen.dart';
+import 'stats_screen.dart';
 
 enum _CardState { completed, upNext, scheduled }
 
@@ -23,6 +26,8 @@ class _GymScreenState extends ConsumerState<GymScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final pageTopPad = ref.watch(settingsProvider.select((s) => s.pageTopPad));
+    final accent = Theme.of(context).colorScheme.primary;
     final gym = ref.watch(gymProvider);
     final split = gym.selectedSplit;
     final today = DateTime.now().weekday; // 1=Mon, 7=Sun
@@ -36,7 +41,7 @@ class _GymScreenState extends ConsumerState<GymScreen> {
           'red' => const Color(0xFFFF453A),
           'yellow' => const Color(0xFFFF9F0A),
           'green' => const Color(0xFF34C759),
-          _ => const Color(0xFF5B7FA8),
+          _ => accent,
         };
         return MapEntry(_dateKey(t.date), color);
       }),
@@ -60,25 +65,34 @@ class _GymScreenState extends ConsumerState<GymScreen> {
           children: [
             // Header
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 12, 0),
+              padding: EdgeInsets.fromLTRB(20, pageTopPad, 12, 0),
               child: Row(
                 children: [
                   Expanded(child: _SplitHeader(gym: gym)),
                   IconButton(
-                    icon: const Icon(Icons.emoji_events_outlined,
-                        color: Colors.white38),
-                    tooltip: 'PRs',
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const PRScreen()),
-                    ),
+                    icon: const Icon(Icons.bar_chart_rounded, color: Colors.white38),
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const StatsScreen())),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.tune, color: Colors.white38),
-                    onPressed: () =>
-                        Navigator.of(context, rootNavigator: true).push(
-                      MaterialPageRoute(builder: (_) => const EditSplitScreen()),
-                    ),
+                    icon: const Icon(Icons.add_rounded, color: Colors.white38),
+                    onPressed: () {
+                      final active = ref.read(activeWorkoutProvider);
+                      if (active != null) return;
+                      showModalBottomSheet(
+                        context: context,
+                        useRootNavigator: true,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => const _QuickSessionSheet(),
+                      );
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.tune_rounded, color: Colors.white38),
+                    onPressed: () => Navigator.of(context, rootNavigator: true)
+                        .push(MaterialPageRoute(
+                            builder: (_) => const EditSplitScreen())),
                   ),
                 ],
               ),
@@ -215,6 +229,7 @@ class _GymScreenState extends ConsumerState<GymScreen> {
 class _ResumeBanner extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final accent = Theme.of(context).colorScheme.primary;
     final workout = ref.watch(activeWorkoutProvider);
     if (workout == null) return const SizedBox.shrink();
 
@@ -226,23 +241,23 @@ class _ResumeBanner extends ConsumerWidget {
         margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF5B7FA8).withValues(alpha: 0.08),
+          color: accent.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(14),
           border:
-              Border.all(color: const Color(0xFF5B7FA8).withValues(alpha: 0.3)),
+              Border.all(color: accent.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.play_circle_outline,
-                color: Color(0xFF5B7FA8), size: 20),
+            Icon(Icons.play_circle_outline,
+                color: accent, size: 20),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('WORKOUT PAUSED',
+                  Text('WORKOUT PAUSED',
                       style: TextStyle(
-                          color: Color(0xFF5B7FA8),
+                          color: accent,
                           fontSize: 10,
                           letterSpacing: 1.4,
                           fontWeight: FontWeight.w700)),
@@ -254,14 +269,14 @@ class _ResumeBanner extends ConsumerWidget {
                 ],
               ),
             ),
-            const Text('Resume',
+            Text('Resume',
                 style: TextStyle(
-                    color: Color(0xFF5B7FA8),
+                    color: accent,
                     fontSize: 13,
                     fontWeight: FontWeight.w600)),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right,
-                color: Color(0xFF5B7FA8), size: 18),
+            Icon(Icons.chevron_right,
+                color: accent, size: 18),
           ],
         ),
       ),
@@ -277,12 +292,15 @@ class _SplitHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final name = gym.selectedSplit?.name ?? 'Gym';
+    final name = (gym.selectedSplit?.name ?? 'Gym').toUpperCase();
 
     if (gym.splits.length <= 1) {
       return Text(name,
           style: const TextStyle(
-              fontSize: 30, fontWeight: FontWeight.w700, color: Colors.white));
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              letterSpacing: 1.5));
     }
 
     return GestureDetector(
@@ -301,11 +319,12 @@ class _SplitHeader extends ConsumerWidget {
         children: [
           Text(name,
               style: const TextStyle(
-                  fontSize: 30,
+                  fontSize: 22,
                   fontWeight: FontWeight.w700,
-                  color: Colors.white)),
+                  color: Colors.white,
+                  letterSpacing: 1.5)),
           const SizedBox(width: 6),
-          const Icon(Icons.expand_more, color: Colors.white38, size: 22),
+          const Icon(Icons.expand_more, color: Colors.white38, size: 20),
         ],
       ),
     );
@@ -323,6 +342,7 @@ class _SplitPickerSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
       decoration: const BoxDecoration(
@@ -342,7 +362,7 @@ class _SplitPickerSheet extends StatelessWidget {
                 title: Text(s.name,
                     style: const TextStyle(color: Colors.white)),
                 trailing: s.id == selectedId
-                    ? const Icon(Icons.check, color: Color(0xFF5B7FA8))
+                    ? Icon(Icons.check, color: accent)
                     : null,
                 onTap: () {
                   onSelect(s.id);
@@ -394,6 +414,7 @@ class _WorkoutCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final isRest = day.isRestDay;
     final hasExercises = day.exercises.isNotEmpty;
 
@@ -411,7 +432,7 @@ class _WorkoutCard extends StatelessWidget {
 
     final labelColor = switch (state) {
       _CardState.completed => const Color(0xFF34C759),
-      _CardState.upNext => const Color(0xFF5B7FA8),
+      _CardState.upNext => accent,
       _CardState.scheduled => Colors.white30,
     };
 
@@ -463,7 +484,7 @@ class _WorkoutCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF5B7FA8).withValues(alpha: 0.4),
+                color: accent.withValues(alpha: 0.4),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -676,3 +697,263 @@ String _dayAbbr(WorkoutDay d, int today) {
 
 String _dateKey(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+// ── Quick Session Sheet ────────────────────────────────────────────────────────
+
+class _QuickSessionSheet extends ConsumerStatefulWidget {
+  const _QuickSessionSheet();
+
+  @override
+  ConsumerState<_QuickSessionSheet> createState() => _QuickSessionSheetState();
+}
+
+class _QuickSessionSheetState extends ConsumerState<_QuickSessionSheet> {
+  final _search = TextEditingController();
+  final _selected = <String>{};
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  List<String> _allExerciseNames(List<LibraryExercise> library, GymState gym) {
+    final names = <String>{};
+    for (final ex in library) {
+      names.add(ex.name);
+    }
+    for (final split in gym.splits) {
+      for (final day in split.days) {
+        for (final ex in day.exercises) {
+          names.add(ex.name);
+        }
+      }
+    }
+    final sorted = names.toList()..sort();
+    return sorted;
+  }
+
+  ExerciseTemplate _templateFor(String name, List<LibraryExercise> library, GymState gym) {
+    // Check library first
+    final lib = library.where((e) => e.name == name).firstOrNull;
+    if (lib != null) {
+      return ExerciseTemplate(
+        name: lib.name,
+        usualWeight: lib.defaultWeight,
+        usualReps: lib.defaultReps,
+      );
+    }
+    // Fall back to split history
+    for (final split in gym.splits) {
+      for (final day in split.days) {
+        for (final ex in day.exercises) {
+          if (ex.name == name) return ex;
+        }
+      }
+    }
+    return ExerciseTemplate(name: name, usualWeight: 20, usualReps: 8);
+  }
+
+  void _start(BuildContext context) {
+    final library = ref.read(exerciseLibraryProvider);
+    final gym = ref.read(gymProvider);
+    final exercises = _selected
+        .map((name) => _templateFor(name, library, gym))
+        .toList();
+    ref.read(activeWorkoutProvider.notifier).startAdHocWorkout(exercises);
+    Navigator.pop(context);
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(builder: (_) => const ActiveWorkoutScreen()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final library = ref.watch(exerciseLibraryProvider);
+    final gym = ref.watch(gymProvider);
+    final all = _allExerciseNames(library, gym);
+    final filtered = _query.isEmpty
+        ? all
+        : all.where((n) => n.toLowerCase().contains(_query.toLowerCase())).toList();
+    final keyboardH = MediaQuery.of(context).viewInsets.bottom;
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.only(bottom: keyboardH + safeBottom + 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Container(
+            margin: const EdgeInsets.only(top: 10, bottom: 16),
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white12,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+
+          // Title row
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Quick Session',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (_selected.isNotEmpty)
+                  GestureDetector(
+                    onTap: () => _start(context),
+                    child: Builder(builder: (ctx) {
+                      final accent = Theme.of(ctx).colorScheme.primary;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: accent,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          'Start ${_selected.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+              ],
+            ),
+          ),
+
+          // Search field
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: TextField(
+              controller: _search,
+              onChanged: (v) => setState(() => _query = v),
+              style: const TextStyle(color: Colors.white, fontSize: 15),
+              decoration: InputDecoration(
+                hintText: 'Search exercises…',
+                hintStyle: const TextStyle(color: Colors.white38),
+                prefixIcon:
+                    const Icon(Icons.search, color: Colors.white38, size: 20),
+                filled: true,
+                fillColor: const Color(0xFF2C2C2E),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+            ),
+          ),
+
+          // Exercise list
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.4,
+            ),
+            child: filtered.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'No exercises found.\nAdd some via Gym → Edit → Exercises.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white38, fontSize: 14),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: filtered.length,
+                    itemBuilder: (_, i) {
+                      final name = filtered[i];
+                      final sel = _selected.contains(name);
+                      return GestureDetector(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() {
+                            if (sel) {
+                              _selected.remove(name);
+                            } else {
+                              _selected.add(name);
+                            }
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: Colors.white.withValues(alpha: 0.06),
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  name,
+                                  style: TextStyle(
+                                    color:
+                                        sel ? Colors.white : Colors.white70,
+                                    fontSize: 15,
+                                    fontWeight: sel
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                  ),
+                                ),
+                              ),
+                              Builder(builder: (ctx) {
+                                final accent =
+                                    Theme.of(ctx).colorScheme.primary;
+                                return AnimatedContainer(
+                                  duration: const Duration(milliseconds: 150),
+                                  width: 24,
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                    color: sel
+                                        ? accent
+                                        : Colors.transparent,
+                                    border: Border.all(
+                                      color: sel
+                                          ? accent
+                                          : Colors.white24,
+                                      width: 1.5,
+                                    ),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: sel
+                                      ? const Icon(Icons.check,
+                                          color: Colors.white, size: 14)
+                                      : null,
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}

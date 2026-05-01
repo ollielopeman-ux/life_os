@@ -1,10 +1,16 @@
 ﻿import 'dart:math' show max;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../providers/schedule_provider.dart';
 import '../models/task.dart';
 import '../../reading/providers/reading_provider.dart';
+import '../../gym/providers/gym_provider.dart';
+import '../../gym/models/gym_models.dart';
+import '../../cardio/providers/cardio_provider.dart';
+import '../../cardio/models/cardio_models.dart';
+import '../../settings/providers/settings_provider.dart';
 
 class ScheduleScreen extends ConsumerStatefulWidget {
   const ScheduleScreen({super.key});
@@ -16,6 +22,7 @@ class ScheduleScreen extends ConsumerStatefulWidget {
 class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   late DateTime _weekStart;
   DateTime? _selected;
+  int _tab = 0;
 
   @override
   void initState() {
@@ -35,6 +42,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final allTasks = ref.watch(scheduleProvider);
     final allBooks = ref.watch(booksProvider);
 
@@ -79,14 +87,16 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                 t.date.day == _selected!.day)
             .toList();
 
+    final pageTopPad = ref.watch(settingsProvider.select((s) => s.pageTopPad));
+
     return Scaffold(
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 20, 20, 16),
-              child: Center(
+            Padding(
+              padding: EdgeInsets.fromLTRB(20, pageTopPad, 20, 8),
+              child: const Center(
                 child: Text('CALENDAR',
                     style: TextStyle(
                         fontSize: 22,
@@ -95,53 +105,145 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                         letterSpacing: 1.5)),
               ),
             ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _TwoWeekCard(
-                      days: days,
-                      selected: _selected,
-                      activityMap: activityMap,
-                      onPrev: () => setState(() {
-                        _weekStart =
-                            _weekStart.subtract(const Duration(days: 14));
-                        _selected = null;
-                      }),
-                      onNext: () => setState(() {
-                        _weekStart =
-                            _weekStart.add(const Duration(days: 14));
-                        _selected = null;
-                      }),
-                      onDayTap: (d) => setState(() {
-                        _selected = _sameDay(d, _selected) ? null : d;
-                      }),
+            // ── Glass tab switcher ────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Container(
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.50),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.10),
+                        width: 0.5,
+                      ),
                     ),
-                    AnimatedSize(
-                      duration: const Duration(milliseconds: 240),
-                      curve: Curves.easeInOut,
-                      child: _selected == null
-                          ? const SizedBox(width: double.infinity)
-                          : _DayPanel(
-                              day: _selected!,
-                              tasks: selectedTasks,
-                            ),
+                    child: Row(
+                      children: [
+                        _TabPill(
+                          label: 'Week',
+                          selected: _tab == 0,
+                          onTap: () => setState(() => _tab = 0),
+                          accent: accent,
+                        ),
+                        _TabPill(
+                          label: 'Log',
+                          selected: _tab == 1,
+                          onTap: () => setState(() => _tab = 1),
+                          accent: accent,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 28),
-                    const _YearDotsSection(),
-                    const SizedBox(height: 20),
-                    _KpiRow(
-                      gym: gymSessions,
-                      books: booksRead,
-                      cardio: cardioRuns,
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
+            // ── Tab content ───────────────────────────────────────────────
+            if (_tab == 0)
+              const Expanded(child: _WeekTab())
+            else
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _TwoWeekCard(
+                        days: days,
+                        selected: _selected,
+                        activityMap: activityMap,
+                        onPrev: () => setState(() {
+                          _weekStart =
+                              _weekStart.subtract(const Duration(days: 14));
+                          _selected = null;
+                        }),
+                        onNext: () => setState(() {
+                          _weekStart =
+                              _weekStart.add(const Duration(days: 14));
+                          _selected = null;
+                        }),
+                        onDayTap: (d) => setState(() {
+                          _selected = _sameDay(d, _selected) ? null : d;
+                        }),
+                      ),
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 240),
+                        curve: Curves.easeInOut,
+                        child: _selected == null
+                            ? const SizedBox(width: double.infinity)
+                            : _DayPanel(
+                                day: _selected!,
+                                tasks: selectedTasks,
+                              ),
+                      ),
+                      const SizedBox(height: 28),
+                      const _YearDotsSection(),
+                      const SizedBox(height: 20),
+                      _KpiRow(
+                        gym: gymSessions,
+                        books: booksRead,
+                        cardio: cardioRuns,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Tab Pill ──────────────────────────────────────────────────────────────────
+
+class _TabPill extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color accent;
+
+  const _TabPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          margin: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: selected
+                ? Colors.white.withValues(alpha: 0.13)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selected
+                  ? Colors.white.withValues(alpha: 0.18)
+                  : Colors.transparent,
+              width: 0.5,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : Colors.white38,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -292,6 +394,7 @@ class _DayCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final thisDay = DateTime(day.year, day.month, day.day);
@@ -312,9 +415,9 @@ class _DayCell extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? const Color(0xFF5B7FA8)
+                      ? accent
                       : isToday
-                          ? const Color(0xFF5B7FA8).withValues(alpha: 0.15)
+                          ? accent.withValues(alpha: 0.15)
                           : Colors.transparent,
                 ),
                 child: Column(
@@ -328,7 +431,7 @@ class _DayCell extends StatelessWidget {
                         color: isSelected
                             ? Colors.white
                             : isToday
-                                ? const Color(0xFF5B7FA8)
+                                ? accent
                                 : isPast
                                     ? Colors.white70
                                     : Colors.white30,
@@ -346,7 +449,7 @@ class _DayCell extends StatelessWidget {
                   right: 0,
                   child: Container(
                     height: 3,
-                    color: const Color(0xFF5B7FA8).withValues(alpha: 0.8),
+                    color: accent.withValues(alpha: 0.8),
                   ),
                 ),
             ],
@@ -367,8 +470,9 @@ class _ActivityDots extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final dots = <Color>[];
-    if (activities.contains('gym')) dots.add(const Color(0xFF5B7FA8));
+    if (activities.contains('gym')) dots.add(accent);
     if (activities.contains('cardio')) dots.add(const Color(0xFFE07B54));
     if (activities.contains('book')) dots.add(const Color(0xFF9B7FD4));
     if (activities.contains('pr')) dots.add(const Color(0xFFFFD700));
@@ -448,9 +552,9 @@ class _DayTaskTile extends StatelessWidget {
   final Task task;
   const _DayTaskTile({required this.task});
 
-  (IconData, Color, String) _meta() {
+  (IconData, Color, String) _meta(Color accent) {
     if (task.isWorkout) {
-      return (Icons.fitness_center, const Color(0xFF5B7FA8), task.title.replaceAll(' · Gym', ''));
+      return (Icons.fitness_center, accent, task.title.replaceAll(' · Gym', ''));
     }
     if (task.title.endsWith('· Cardio')) {
       return (Icons.directions_run, const Color(0xFFE07B54), task.title.replaceAll(' · Cardio', ''));
@@ -466,7 +570,8 @@ class _DayTaskTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (icon, color, label) = _meta();
+    final accent = Theme.of(context).colorScheme.primary;
+    final (icon, color, label) = _meta(accent);
     final isGym = task.isWorkout;
     final isActivity = isGym || task.title.endsWith('· Cardio') || task.title.endsWith('· Plyo');
 
@@ -528,6 +633,7 @@ class _YearDotsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final today = DateTime.now();
     final year = today.year;
     final yearStart = DateTime(year, 1, 1);
@@ -573,7 +679,7 @@ class _YearDotsSection extends StatelessWidget {
             final idx = i + 1;
             final Color color;
             if (idx == dayOfYear) {
-              color = const Color(0xFF5B7FA8);
+              color = accent;
             } else if (idx < dayOfYear) {
               color = Colors.white.withValues(alpha: 0.5);
             } else {
@@ -600,6 +706,7 @@ class _WorkoutDetailSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final accent = Theme.of(context).colorScheme.primary;
     final sets = task.workoutSets;
     final prs = task.workoutPRs.toSet();
     final missed = task.missedExercises;
@@ -637,10 +744,10 @@ class _WorkoutDetailSheet extends ConsumerWidget {
                       Container(
                         width: 44, height: 44,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF5B7FA8).withValues(alpha: 0.12),
+                          color: accent.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.fitness_center, color: Color(0xFF5B7FA8), size: 22),
+                        child: Icon(Icons.fitness_center, color: accent, size: 22),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -669,7 +776,7 @@ class _WorkoutDetailSheet extends ConsumerWidget {
                             label: duration < 60
                                 ? '$duration min'
                                 : '${duration ~/ 60}h ${duration % 60}m',
-                            color: const Color(0xFF5B7FA8),
+                            color: accent,
                           ),
                         if (rating != null)
                           _StatChip(
@@ -739,16 +846,16 @@ class _WorkoutDetailSheet extends ConsumerWidget {
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                 decoration: BoxDecoration(
                                   color: isTop
-                                      ? const Color(0xFF5B7FA8).withValues(alpha: 0.12)
+                                      ? accent.withValues(alpha: 0.12)
                                       : const Color(0xFF242428),
                                   borderRadius: BorderRadius.circular(8),
                                   border: isTop
-                                      ? Border.all(color: const Color(0xFF5B7FA8).withValues(alpha: 0.3))
+                                      ? Border.all(color: accent.withValues(alpha: 0.3))
                                       : null,
                                 ),
                                 child: Text('${_fmtW(w)}kg × $r',
                                     style: TextStyle(
-                                        color: isTop ? const Color(0xFF5B7FA8) : Colors.white60,
+                                        color: isTop ? accent : Colors.white60,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600)),
                               );
@@ -810,6 +917,7 @@ class _ActivityDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final isCardio = task.title.endsWith('· Cardio');
     final name = task.title.replaceAll(' · Cardio', '').replaceAll(' · Plyo', '');
     final icon = isCardio ? Icons.directions_run : Icons.flash_on_rounded;
@@ -875,7 +983,7 @@ class _ActivityDetailSheet extends StatelessWidget {
                 _StatChip(
                   icon: Icons.timer_outlined,
                   label: duration < 60 ? '$duration min' : '${duration ~/ 60}h ${duration % 60}m',
-                  color: const Color(0xFF5B7FA8),
+                  color: accent,
                 ),
               if (intensity != null)
                 _StatChip(icon: Icons.bolt_rounded, label: intensity, color: _intensityColor(intensity)),
@@ -958,6 +1066,7 @@ class _KpiRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return Row(
       children: [
         Expanded(
@@ -965,7 +1074,7 @@ class _KpiRow extends StatelessWidget {
             label: 'Gym Sessions',
             value: '$gym',
             icon: Icons.fitness_center,
-            color: const Color(0xFF5B7FA8),
+            color: accent,
           ),
         ),
         const SizedBox(width: 10),
@@ -1054,3 +1163,325 @@ String _fmtW(double w) => w % 1 == 0 ? '${w.toInt()}' : '$w';
 
 String _dateKey(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+bool _sameDate(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
+
+// ── Week Tab ──────────────────────────────────────────────────────────────────
+
+class _WeekTab extends ConsumerWidget {
+  const _WeekTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final accent = Theme.of(context).colorScheme.primary;
+    final gymState = ref.watch(gymProvider);
+    final cardioState = ref.watch(cardioProvider);
+    final allTasks = ref.watch(scheduleProvider);
+
+    final gymDays = gymState.selectedSplit?.days ?? [];
+    final cardioSessions = cardioState.selectedSplit?.sessions ?? [];
+
+    final todayRaw = DateTime.now();
+    final today = DateTime(todayRaw.year, todayRaw.month, todayRaw.day);
+    final weekDays = List.generate(7, (i) => today.add(Duration(days: i)));
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (int i = 0; i < weekDays.length; i++) ...[
+            if (i > 0)
+              const Divider(height: 1, color: Color(0xFF2C2C2E)),
+            _WeekDayRow(
+              date: weekDays[i],
+              isToday: i == 0,
+              gymDays: gymDays,
+              cardioSessions: cardioSessions,
+              allTasks: allTasks,
+              accent: accent,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _WeekDayRow extends StatelessWidget {
+  final DateTime date;
+  final bool isToday;
+  final List<WorkoutDay> gymDays;
+  final List<CardioSession> cardioSessions;
+  final List<Task> allTasks;
+  final Color accent;
+
+  const _WeekDayRow({
+    required this.date,
+    required this.isToday,
+    required this.gymDays,
+    required this.cardioSessions,
+    required this.allTasks,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final weekday = date.weekday; // 1=Mon … 7=Sun
+
+    // Find matching gym day
+    final matchedGymDay = gymDays.where(
+      (d) => d.weekdays.contains(weekday),
+    ).firstOrNull;
+
+    // Find matching cardio sessions
+    final matchedCardio = cardioSessions.where(
+      (s) => s.weekdays.contains(weekday),
+    ).toList();
+
+    // Check completion for this date
+    final dayTasks = allTasks.where((t) => _sameDate(t.date, date)).toList();
+    final gymDone = dayTasks.any((t) => t.done && t.isWorkout);
+    final cardioDoneNames = dayTasks
+        .where((t) => t.done && t.title.endsWith('· Cardio'))
+        .map((t) => t.title.replaceAll(' · Cardio', ''))
+        .toSet();
+
+    final hasAnything = matchedGymDay != null || matchedCardio.isNotEmpty;
+
+    // Header label
+    final dayLabel = isToday
+        ? 'TODAY · ${DateFormat('EEE d MMM').format(date).toUpperCase()}'
+        : DateFormat('EEE d MMM').format(date).toUpperCase();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Day header
+          Row(
+            children: [
+              Text(
+                dayLabel,
+                style: TextStyle(
+                  color: isToday ? accent : Colors.white60,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              if (isToday) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'TODAY',
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Sessions
+          if (!hasAnything)
+            // Rest row
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.bedtime_outlined,
+                      size: 16, color: Colors.white24),
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  'Rest',
+                  style: TextStyle(color: Colors.white24, fontSize: 14),
+                ),
+              ],
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Gym session row
+                if (matchedGymDay != null) ...[
+                  if (matchedGymDay.isRestDay)
+                    Row(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.bedtime_outlined,
+                              size: 16, color: Colors.white24),
+                        ),
+                        const SizedBox(width: 10),
+                        const Text('Rest',
+                            style: TextStyle(
+                                color: Colors.white24, fontSize: 14)),
+                      ],
+                    )
+                  else
+                    _SessionRow(
+                      icon: Icons.fitness_center,
+                      iconBg: accent.withValues(alpha: 0.10),
+                      iconColor: accent,
+                      title: matchedGymDay.name,
+                      subtitle: matchedGymDay.exercises.isEmpty
+                          ? null
+                          : matchedGymDay.exercises
+                              .take(3)
+                              .map((e) => e.name)
+                              .join(' · '),
+                      isDone: gymDone,
+                    ),
+                ],
+                // Cardio session rows
+                for (final session in matchedCardio) ...[
+                  if (matchedGymDay != null && !matchedGymDay.isRestDay)
+                    const SizedBox(height: 8),
+                  _SessionRow(
+                    icon: Icons.directions_run,
+                    iconBg: const Color(0xFFE07B54).withValues(alpha: 0.10),
+                    iconColor: const Color(0xFFE07B54),
+                    title: session.name,
+                    subtitle: [
+                      session.intensity,
+                      if (session.durationMinutes != null)
+                        '${session.durationMinutes} min',
+                    ].join(' · '),
+                    isDone: cardioDoneNames.contains(session.name),
+                  ),
+                ],
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SessionRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconBg;
+  final Color iconColor;
+  final String title;
+  final String? subtitle;
+  final bool isDone;
+
+  const _SessionRow({
+    required this.icon,
+    required this.iconBg,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.isDone,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Stack(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 16, color: iconColor),
+            ),
+            if (isDone)
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF34C759).withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.check, size: 16, color: Colors.white),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (isDone) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF34C759).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'Done',
+                        style: TextStyle(
+                          color: Color(0xFF34C759),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle!,
+                  style: const TextStyle(
+                    color: Colors.white38,
+                    fontSize: 12,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}

@@ -1,6 +1,8 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../providers/checklist_provider.dart';
 import '../models/checklist_item.dart';
 import '../../schedule/providers/schedule_provider.dart';
@@ -26,15 +28,21 @@ class _ChecklistScreenState extends ConsumerState<ChecklistScreen> {
     super.initState();
     final now = DateTime.now();
     _selected = DateTime(now.year, now.month, now.day);
-    _weekStart = _monday(_selected);
+    final startsMonday = ref.read(settingsProvider).weekStartsMonday;
+    _weekStart = _weekStartFor(_selected, startsMonday);
   }
 
-  static DateTime _monday(DateTime d) =>
-      d.subtract(Duration(days: d.weekday - 1));
+  static DateTime _weekStartFor(DateTime d, bool startsMonday) {
+    if (startsMonday) return d.subtract(Duration(days: d.weekday - 1));
+    // Sunday start: weekday 7 = Sun (dart), so offset = (weekday % 7)
+    return d.subtract(Duration(days: d.weekday % 7));
+  }
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final allItems = ref.watch(checklistProvider);
+    final pageTopPad = ref.watch(settingsProvider.select((s) => s.pageTopPad));
     final allTasks = ref.watch(scheduleProvider);
 
     final items = allItems
@@ -86,7 +94,7 @@ class _ChecklistScreenState extends ConsumerState<ChecklistScreen> {
       autoItems.add(_AutoItem(
         label: t.title.replaceAll(' · Gym', '').trim(),
         icon: Icons.fitness_center,
-        color: const Color(0xFF5B7FA8),
+        color: accent,
       ));
     }
     for (final t in dayTasks.where((t) => t.done && t.title.endsWith('· Cardio'))) {
@@ -144,8 +152,8 @@ class _ChecklistScreenState extends ConsumerState<ChecklistScreen> {
 
     final suggestions = <_Suggestion>[];
     if (!hasGym && !itemTitles.contains('gym') && !showGymCard) {
-      suggestions.add(const _Suggestion(
-          'Gym', Icons.fitness_center, Color(0xFF5B7FA8)));
+      suggestions.add(_Suggestion(
+          'Gym', Icons.fitness_center, accent));
     }
     if (!hasCardio && !itemTitles.contains('cardio')) {
       suggestions.add(const _Suggestion(
@@ -176,7 +184,7 @@ class _ChecklistScreenState extends ConsumerState<ChecklistScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+              padding: EdgeInsets.fromLTRB(20, pageTopPad, 20, 16),
               child: SizedBox(
                 width: double.infinity,
                 child: Stack(
@@ -219,6 +227,12 @@ class _ChecklistScreenState extends ConsumerState<ChecklistScreen> {
                   _selected = _weekStart;
                 }),
                 onDayTap: (d) => setState(() => _selected = d),
+                onToday: () => setState(() {
+                  final now = DateTime.now();
+                  _selected = DateTime(now.year, now.month, now.day);
+                  _weekStart = _weekStartFor(
+                      _selected, ref.read(settingsProvider).weekStartsMonday);
+                }),
               ),
             ),
             const SizedBox(height: 16),
@@ -320,6 +334,7 @@ class _WeekCard extends StatelessWidget {
   final VoidCallback onPrev;
   final VoidCallback onNext;
   final ValueChanged<DateTime> onDayTap;
+  final VoidCallback onToday;
 
   const _WeekCard({
     required this.weekStart,
@@ -328,19 +343,26 @@ class _WeekCard extends StatelessWidget {
     required this.onPrev,
     required this.onNext,
     required this.onDayTap,
+    required this.onToday,
   });
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final end = weekStart.add(const Duration(days: 6));
     final label =
         '${DateFormat('d MMM').format(weekStart)} – ${DateFormat('d MMM').format(end)}';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final weekContainsToday =
+        !today.isBefore(weekStart) && !today.isAfter(end);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
         color: const Color(0xFF1C1C1E),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF2C2C2E)),
       ),
       child: Column(
         children: [
@@ -365,6 +387,25 @@ class _WeekCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (!weekContainsToday)
+                GestureDetector(
+                  onTap: onToday,
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                          color: accent.withValues(alpha: 0.4)),
+                    ),
+                    child: Text('Today',
+                        style: TextStyle(
+                            color: accent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600)),
+                  ),
+                ),
               GestureDetector(
                 onTap: onNext,
                 child: const Padding(
@@ -418,6 +459,7 @@ class _DayCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final thisDay = DateTime(day.year, day.month, day.day);
@@ -436,7 +478,7 @@ class _DayCell extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isSelected
-                  ? const Color(0xFF5B7FA8)
+                  ? accent
                   : Colors.transparent,
             ),
             child: Center(
@@ -453,7 +495,7 @@ class _DayCell extends StatelessWidget {
                         color: isSelected
                             ? Colors.white
                             : isToday
-                                ? const Color(0xFF5B7FA8)
+                                ? accent
                                 : isPast
                                     ? Colors.white70
                                     : Colors.white30,
@@ -475,70 +517,81 @@ class _ChecklistTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final accent = Theme.of(context).colorScheme.primary;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: GestureDetector(
-        onTap: () =>
-            ref.read(checklistProvider.notifier).toggleItem(item.id),
-        child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Dismissible(
+        key: ValueKey(item.id),
+        direction: DismissDirection.endToStart,
+        onDismissed: (_) {
+          if (ref.read(settingsProvider).hapticsEnabled) HapticFeedback.mediumImpact();
+          ref.read(checklistProvider.notifier).deleteItem(item.id);
+        },
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20),
           decoration: BoxDecoration(
-            color: const Color(0xFF1C1C1E),
+            color: const Color(0xFF3A1212),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFF2C2C2E)),
+            border: Border.all(color: const Color(0xFFFF453A).withValues(alpha: 0.3)),
           ),
-          child: Row(
-            children: [
-              _CheckCircle(done: item.done),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.title,
-                      style: TextStyle(
-                        color: item.done ? Colors.white38 : Colors.white,
-                        fontSize: 15,
-                        decoration: item.done
-                            ? TextDecoration.lineThrough
-                            : null,
-                        decorationColor: Colors.white24,
+          child: const Icon(Icons.delete_outline, color: Color(0xFFFF453A), size: 22),
+        ),
+        child: GestureDetector(
+          onTap: () {
+            if (ref.read(settingsProvider).hapticsEnabled) HapticFeedback.lightImpact();
+            ref.read(checklistProvider.notifier).toggleItem(item.id);
+          },
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C1C1E),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF2C2C2E)),
+            ),
+            child: Row(
+              children: [
+                _CheckCircle(done: item.done),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.title,
+                        style: TextStyle(
+                          color: item.done ? Colors.white38 : Colors.white,
+                          fontSize: 15,
+                          decoration: item.done
+                              ? TextDecoration.lineThrough
+                              : null,
+                          decorationColor: Colors.white24,
+                        ),
                       ),
-                    ),
-                    if (item.formattedTime != null) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(Icons.access_time_rounded,
-                              size: 11,
-                              color: Color(0xFF5B7FA8)),
-                          const SizedBox(width: 3),
-                          Text(
-                            item.formattedTime!,
-                            style: const TextStyle(
-                                color: Color(0xFF5B7FA8),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
+                      if (item.formattedTime != null) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.access_time_rounded,
+                                size: 11,
+                                color: accent),
+                            const SizedBox(width: 3),
+                            Text(
+                              item.formattedTime!,
+                              style: TextStyle(
+                                  color: accent,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              GestureDetector(
-                onTap: () => ref
-                    .read(checklistProvider.notifier)
-                    .deleteItem(item.id),
-                child: const Padding(
-                  padding: EdgeInsets.only(left: 8),
-                  child: Icon(Icons.delete_outline,
-                      size: 18, color: Colors.white24),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -552,16 +605,17 @@ class _CheckCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return Container(
       width: 22,
       height: 22,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          color: done ? const Color(0xFF5B7FA8) : Colors.white24,
+          color: done ? accent : Colors.white24,
           width: 2,
         ),
-        color: done ? const Color(0xFF5B7FA8) : Colors.transparent,
+        color: done ? accent : Colors.transparent,
       ),
       child: done
           ? const Icon(Icons.check, size: 13, color: Colors.white)
@@ -661,6 +715,7 @@ class _WorkoutQuickCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final accent = Theme.of(context).colorScheme.primary;
     return Padding(
       padding: const EdgeInsets.only(top: 24),
       child: GestureDetector(
@@ -676,7 +731,7 @@ class _WorkoutQuickCard extends ConsumerWidget {
             color: const Color(0xFF1A2E22),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: const Color(0xFF5B7FA8).withValues(alpha: 0.4),
+              color: accent.withValues(alpha: 0.4),
               width: 1.5,
             ),
           ),
@@ -686,7 +741,7 @@ class _WorkoutQuickCard extends ConsumerWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF5B7FA8),
+                  color: accent,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(Icons.fitness_center,
@@ -697,9 +752,9 @@ class _WorkoutQuickCard extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("TODAY'S WORKOUT",
+                    Text("TODAY'S WORKOUT",
                         style: TextStyle(
-                            color: Color(0xFF5B7FA8),
+                            color: accent,
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 1.2)),
@@ -720,8 +775,8 @@ class _WorkoutQuickCard extends ConsumerWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.play_arrow_rounded,
-                  color: Color(0xFF5B7FA8), size: 28),
+              Icon(Icons.play_arrow_rounded,
+                  color: accent, size: 28),
             ],
           ),
         ),

@@ -1,4 +1,5 @@
 ﻿import 'dart:io';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -6,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../providers/body_provider.dart';
 import '../models/body_entry.dart';
 import '../../../shared/services/notification_service.dart';
+import '../../settings/providers/settings_provider.dart';
 
 class BodyScreen extends ConsumerStatefulWidget {
   const BodyScreen({super.key});
@@ -40,6 +42,7 @@ class _BodyScreenState extends ConsumerState<BodyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final entries = ref.watch(bodyProvider);
 
     // Map date-key → entries for that day (for calendar dots)
@@ -49,6 +52,8 @@ class _BodyScreenState extends ConsumerState<BodyScreen> {
     }
 
     final weightEntries = entries.where((e) => e.weight != null).toList();
+    final weightUnit = ref.watch(settingsProvider.select((s) => s.weightUnit));
+    final pageTopPad = ref.watch(settingsProvider.select((s) => s.pageTopPad));
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -56,8 +61,8 @@ class _BodyScreenState extends ConsumerState<BodyScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 20, 20, 0),
+            Padding(
+              padding: EdgeInsets.fromLTRB(20, pageTopPad, 20, 0),
               child: Center(
                 child: Text('WEIGHT',
                     style: TextStyle(
@@ -74,8 +79,14 @@ class _BodyScreenState extends ConsumerState<BodyScreen> {
                   ListView(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
                     children: [
-                      _KpiRow(entries: weightEntries),
-                      const SizedBox(height: 24),
+                      _KpiRow(entries: weightEntries, unit: weightUnit),
+                      const SizedBox(height: 10),
+                      _GoalWeightBanner(
+                          entries: weightEntries, unit: weightUnit),
+                      const SizedBox(height: 6),
+                      if (weightEntries.length >= 2)
+                        _WeightChart(entries: weightEntries, unit: weightUnit),
+                      const SizedBox(height: 16),
                       _CalendarCard(
                         month: _calMonth,
                         entryMap: entryMap,
@@ -109,7 +120,7 @@ class _BodyScreenState extends ConsumerState<BodyScreen> {
                           borderRadius: BorderRadius.circular(18),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF5B7FA8).withValues(alpha: 0.4),
+                              color: accent.withValues(alpha: 0.4),
                               blurRadius: 18,
                               offset: const Offset(0, 5),
                             ),
@@ -170,10 +181,14 @@ class _BodyScreenState extends ConsumerState<BodyScreen> {
 
 class _KpiRow extends StatelessWidget {
   final List<BodyEntry> entries; // weight-only, newest first
-  const _KpiRow({required this.entries});
+  final String unit;
+  const _KpiRow({required this.entries, required this.unit});
 
   @override
   Widget build(BuildContext context) {
+    double conv(double kg) => unit == 'lbs' ? kg * 2.20462 : kg;
+    String fmt(double kg) => conv(kg).toStringAsFixed(1);
+
     final current = entries.isNotEmpty ? entries.first.weight : null;
 
     // 7-day trend: current vs last entry that is >= 7 days ago
@@ -185,20 +200,21 @@ class _KpiRow extends StatelessWidget {
         orElse: () => entries.last,
       );
       if (older != entries.first) {
-        trend7 = current - older.weight!;
+        trend7 = conv(current) - conv(older.weight!);
       }
     }
 
-    // Streak: consecutive days with any log
+    // Streak: consecutive days with any log (deduplicated by day)
     int streak = 0;
     if (entries.isNotEmpty) {
-      var day = _dayOnly(DateTime.now());
-      for (final e in entries) {
-        final eDay = _dayOnly(e.date);
-        if (eDay == day || eDay == day.subtract(const Duration(days: 1))) {
+      final uniqueDays = entries.map((e) => _dayOnly(e.date)).toSet().toList()
+        ..sort((a, b) => b.compareTo(a));
+      var expected = _dayOnly(DateTime.now());
+      for (final d in uniqueDays) {
+        if (d == expected) {
           streak++;
-          day = eDay;
-        } else {
+          expected = expected.subtract(const Duration(days: 1));
+        } else if (d.isBefore(expected)) {
           break;
         }
       }
@@ -209,14 +225,14 @@ class _KpiRow extends StatelessWidget {
         Expanded(
             child: _KpiCard(
                 label: 'CURRENT',
-                value: current != null ? '${current.toStringAsFixed(1)} kg' : '—')),
+                value: current != null ? '${fmt(current)} $unit' : '—')),
         const SizedBox(width: 10),
         Expanded(
             child: _KpiCard(
                 label: '7-DAY',
                 value: trend7 == null
                     ? '—'
-                    : '${trend7 >= 0 ? '+' : ''}${trend7.toStringAsFixed(1)} kg',
+                    : '${trend7 >= 0 ? '+' : ''}${trend7.toStringAsFixed(1)} $unit',
                 valueColor: trend7 == null
                     ? null
                     : trend7 < 0
@@ -269,6 +285,198 @@ class _KpiCard extends StatelessWidget {
   }
 }
 
+// ── Goal Weight Banner ─────────────────────────────────────────────────────────
+
+class _GoalWeightBanner extends ConsumerWidget {
+  final List<BodyEntry> entries;
+  final String unit;
+  const _GoalWeightBanner({required this.entries, required this.unit});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final accent = Theme.of(context).colorScheme.primary;
+    final targetKg = ref.watch(settingsProvider.select((s) => s.targetWeightKg));
+    if (targetKg == null || entries.isEmpty) return const SizedBox.shrink();
+
+    double conv(double kg) => unit == 'lbs' ? kg * 2.20462 : kg;
+    String fmt(double kg) => conv(kg).toStringAsFixed(1);
+
+    final currentKg = entries.first.weight!;
+    final startKg = entries.last.weight!;
+    final target = conv(targetKg);
+    final current = conv(currentKg);
+    final start = conv(startKg);
+
+    final totalChange = (target - start).abs();
+    final progress = totalChange == 0
+        ? 1.0
+        : ((current - start) / (target - start)).clamp(0.0, 1.0);
+    final remaining = (target - current).abs();
+    final done = progress >= 1.0;
+    final label = done
+        ? 'Goal reached!'
+        : '${fmt(remaining)} $unit to go';
+    final color = done ? const Color(0xFF34C759) : accent;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            done ? Icons.check_circle_outline : Icons.flag_outlined,
+            color: color,
+            size: 16,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Goal  ${fmt(targetKg)} $unit',
+                        style: const TextStyle(
+                            color: Colors.white54, fontSize: 12)),
+                    Text(label,
+                        style: TextStyle(
+                            color: color,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    backgroundColor: const Color(0xFF2C2C2E),
+                    valueColor: AlwaysStoppedAnimation(color),
+                    minHeight: 4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Weight Sparkline ───────────────────────────────────────────────────────────
+
+class _WeightChart extends StatelessWidget {
+  final List<BodyEntry> entries; // weight-only, newest first
+  final String unit;
+  const _WeightChart({required this.entries, required this.unit});
+
+  @override
+  Widget build(BuildContext context) {
+    double conv(double kg) => unit == 'lbs' ? kg * 2.20462 : kg;
+
+    // Take up to 30 most-recent entries, reverse to chronological
+    final pts = entries.take(30).toList().reversed.toList();
+    final spots = <FlSpot>[];
+    for (int i = 0; i < pts.length; i++) {
+      spots.add(FlSpot(i.toDouble(), conv(pts[i].weight!)));
+    }
+    final weights = pts.map((e) => conv(e.weight!));
+    final minW = weights.reduce((a, b) => a < b ? a : b);
+    final maxW = weights.reduce((a, b) => a > b ? a : b);
+    final pad = (maxW - minW) < 1.0 ? 1.0 : (maxW - minW) * 0.2;
+    final first = conv(pts.first.weight!);
+    final last = conv(pts.last.weight!);
+    final trending = last - first;
+    final lineColor = trending <= 0
+        ? const Color(0xFF4CAF50)
+        : const Color(0xFFFF6B6B);
+
+    return Container(
+      height: 110,
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF2C2C2E)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('TREND',
+                  style: TextStyle(
+                      color: Colors.white38,
+                      fontSize: 9,
+                      letterSpacing: 1.4,
+                      fontWeight: FontWeight.w600)),
+              const Spacer(),
+              Text(
+                '${trending >= 0 ? '+' : ''}${trending.toStringAsFixed(1)} $unit',
+                style: TextStyle(
+                    color: lineColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                gridData: const FlGridData(show: false),
+                borderData: FlBorderData(show: false),
+                titlesData: const FlTitlesData(show: false),
+                minY: minW - pad,
+                maxY: maxW + pad,
+                lineTouchData: const LineTouchData(enabled: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    curveSmoothness: 0.3,
+                    color: lineColor,
+                    barWidth: 2,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, pct, bar, idx) {
+                        final isLast = idx == spots.length - 1;
+                        return FlDotCirclePainter(
+                          radius: isLast ? 4 : 2,
+                          color: lineColor,
+                          strokeWidth: isLast ? 2 : 0,
+                          strokeColor: Colors.white,
+                        );
+                      },
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          lineColor.withValues(alpha: 0.18),
+                          lineColor.withValues(alpha: 0.0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ── Calendar ───────────────────────────────────────────────────────────────────
 
 class _CalendarCard extends StatelessWidget {
@@ -285,6 +493,7 @@ class _CalendarCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final firstDay = DateTime(month.year, month.month, 1);
     final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
     // offset so week starts on Monday (weekday 1 → 0 offset)
@@ -384,7 +593,7 @@ class _CalendarCard extends StatelessWidget {
                       height: 32,
                       decoration: isToday
                           ? BoxDecoration(
-                              color: const Color(0xFF5B7FA8),
+                              color: accent,
                               borderRadius: BorderRadius.circular(10),
                             )
                           : null,
@@ -414,7 +623,7 @@ class _CalendarCard extends StatelessWidget {
                         if (hasWeight)
                           _Dot(color: isToday
                               ? Colors.white54
-                              : const Color(0xFF5B7FA8)),
+                              : accent),
                         if (hasWeight && hasPhoto)
                           const SizedBox(width: 3),
                         if (hasPhoto)
@@ -433,15 +642,15 @@ class _CalendarCard extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              _Dot(color: Color(0xFF5B7FA8)),
-              SizedBox(width: 6),
-              Text('Weight',
+            children: [
+              _Dot(color: accent),
+              const SizedBox(width: 6),
+              const Text('Weight',
                   style: TextStyle(color: Colors.white38, fontSize: 11)),
-              SizedBox(width: 20),
-              _Dot(color: Colors.white54),
-              SizedBox(width: 6),
-              Text('Photo',
+              const SizedBox(width: 20),
+              const _Dot(color: Colors.white54),
+              const SizedBox(width: 6),
+              const Text('Photo',
                   style: TextStyle(color: Colors.white38, fontSize: 11)),
             ],
           ),
@@ -516,10 +725,16 @@ class _DayDetailSheet extends ConsumerWidget {
 
           // Weight
           if (weightEntry.weight != null) ...[
-            _DetailRow(
-                icon: Icons.monitor_weight_outlined,
-                label: 'Weight',
-                value: '${weightEntry.weight!.toStringAsFixed(1)} kg'),
+            Builder(builder: (ctx) {
+              final unit = ref.watch(settingsProvider.select((s) => s.weightUnit));
+              final display = unit == 'lbs'
+                  ? '${(weightEntry.weight! * 2.20462).toStringAsFixed(1)} lbs'
+                  : '${weightEntry.weight!.toStringAsFixed(1)} kg';
+              return _DetailRow(
+                  icon: Icons.monitor_weight_outlined,
+                  label: 'Weight',
+                  value: display);
+            }),
             const SizedBox(height: 10),
           ],
 
@@ -642,9 +857,11 @@ class _AddEntrySheetState extends ConsumerState<_AddEntrySheet> {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final entries = ref.watch(bodyProvider);
     final lastWeight =
         entries.where((e) => e.weight != null).firstOrNull?.weight;
+    final unit = ref.watch(settingsProvider.select((s) => s.weightUnit));
 
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
@@ -691,10 +908,10 @@ class _AddEntrySheetState extends ConsumerState<_AddEntrySheet> {
                         decimal: true),
                     style: const TextStyle(
                         color: Colors.white, fontSize: 17),
-                    decoration: const InputDecoration(
-                      hintText: 'Weight (kg)',
+                    decoration: InputDecoration(
+                      hintText: 'Weight ($unit)',
                       filled: true,
-                      fillColor: Color(0xFF242428),
+                      fillColor: const Color(0xFF242428),
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
@@ -780,7 +997,7 @@ class _AddEntrySheetState extends ConsumerState<_AddEntrySheet> {
                           ? Icons.check_circle_outline
                           : Icons.camera_alt_rounded,
                       color: _photoPath != null
-                          ? const Color(0xFF5B7FA8)
+                          ? accent
                           : Colors.white54,
                       size: 34,
                     ),
@@ -791,7 +1008,7 @@ class _AddEntrySheetState extends ConsumerState<_AddEntrySheet> {
                           : 'Take Photo',
                       style: TextStyle(
                         color: _photoPath != null
-                            ? const Color(0xFF5B7FA8)
+                            ? accent
                             : Colors.white54,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -810,7 +1027,7 @@ class _AddEntrySheetState extends ConsumerState<_AddEntrySheet> {
               child: ElevatedButton(
                 onPressed: _submit,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF5B7FA8),
+                  backgroundColor: accent,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16)),

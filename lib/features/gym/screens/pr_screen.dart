@@ -77,6 +77,8 @@ class _PRTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final pr = entry.pr;
     final w = pr.weight % 1 == 0 ? '${pr.weight.toInt()}' : '${pr.weight}';
+    final e1rm = pr.weight * (1 + pr.reps / 30);
+    final e1rmStr = e1rm % 1 < 0.05 ? '${e1rm.round()}' : e1rm.toStringAsFixed(1);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -128,6 +130,10 @@ class _PRTile extends StatelessWidget {
               Text('× ${pr.reps} reps',
                   style: const TextStyle(
                       color: Colors.white38, fontSize: 12)),
+              const SizedBox(height: 2),
+              Text('e1RM ${e1rmStr}kg',
+                  style: const TextStyle(
+                      color: Colors.white24, fontSize: 11)),
             ],
           ),
         ],

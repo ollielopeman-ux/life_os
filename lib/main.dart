@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'core/theme/app_theme.dart';
+import 'package:home_widget/home_widget.dart';
+import 'core/theme/app_theme.dart' show AppTheme, parseAccent;
 import 'core/router/app_router.dart';
 import 'shared/services/notification_service.dart';
 import 'services/widget_service.dart';
@@ -23,6 +25,7 @@ void main() async {
   await Hive.openBox('plyo');
   await Hive.openBox('checklist');
   await Hive.openBox('settings');
+  await Hive.openBox('interval_presets');
 
   await NotificationService.instance.init(onTap: _handleNotificationTap);
   await WidgetService.init();
@@ -65,7 +68,32 @@ class _LifeOsAppState extends ConsumerState<LifeOsApp>
       final payload = await NotificationService.instance.getLaunchPayload();
       if (payload != null) _handleNotificationTap(payload);
       _scheduleNotifications();
+      // Widget deeplink: warm start
+      if (Platform.isIOS || Platform.isAndroid) {
+        HomeWidget.widgetClicked.listen(_handleWidgetUri);
+        final coldUri = await HomeWidget.initiallyLaunchedFromHomeWidget();
+        if (coldUri != null) _handleWidgetUri(coldUri);
+      }
     });
+  }
+
+  void _handleWidgetUri(Uri? uri) {
+    if (uri == null) return;
+    final path = uri.path.isNotEmpty ? uri.path : uri.host;
+    switch (path) {
+      case 'gym':
+      case '/gym':
+        appRouter.go('/gym');
+      case 'checklist':
+      case '/checklist':
+        appRouter.go('/checklist');
+      case 'body':
+      case '/body':
+        appRouter.go('/body');
+      case 'reading':
+      case '/reading':
+        appRouter.go('/reading');
+    }
   }
 
   @override
@@ -150,10 +178,12 @@ class _LifeOsAppState extends ConsumerState<LifeOsApp>
   Widget build(BuildContext context) {
     final isDark = ref.watch(settingsProvider.select((s) => s.isDarkMode));
     final uiScale = ref.watch(settingsProvider.select((s) => s.uiScale));
+    final accentHex = ref.watch(settingsProvider.select((s) => s.accentColor));
+    final accent = parseAccent(accentHex);
     return MaterialApp.router(
       title: 'OAL OS',
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
+      theme: AppTheme.light(accent: accent),
+      darkTheme: AppTheme.dark(accent: accent),
       themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
       routerConfig: appRouter,
       debugShowCheckedModeBanner: false,

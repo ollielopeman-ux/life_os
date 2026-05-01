@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/cardio_models.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../models/plyo_models.dart';
 import '../providers/cardio_provider.dart';
 import '../providers/plyo_provider.dart';
@@ -25,6 +26,8 @@ class _CardioScreenState extends ConsumerState<CardioScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    final pageTopPad = ref.watch(settingsProvider.select((s) => s.pageTopPad));
     final cardio = ref.watch(cardioProvider);
     final plyo = ref.watch(plyoProvider);
     final today = DateTime.now().weekday;
@@ -35,7 +38,7 @@ class _CardioScreenState extends ConsumerState<CardioScreen> {
           .where((t) =>
               t.done &&
               (t.title.endsWith('· Cardio') || t.title.endsWith('· Plyo')))
-          .map((t) => MapEntry(_dateKey(t.date), const Color(0xFF5B7FA8))),
+          .map((t) => MapEntry(_dateKey(t.date), accent)),
     );
 
     return Scaffold(
@@ -45,18 +48,20 @@ class _CardioScreenState extends ConsumerState<CardioScreen> {
           children: [
             // Header
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 12, 0),
+              padding: EdgeInsets.fromLTRB(20, pageTopPad, 12, 0),
               child: Row(
                 children: [
                   Expanded(
                     child: Text(
-                      _mode == 'cardio'
-                          ? (cardio.selectedSplit?.name ?? 'Cardio')
-                          : 'Plyo',
+                      (_mode == 'cardio'
+                              ? (cardio.selectedSplit?.name ?? 'Cardio')
+                              : 'Plyo')
+                          .toUpperCase(),
                       style: const TextStyle(
-                          fontSize: 30,
+                          fontSize: 22,
                           fontWeight: FontWeight.w700,
-                          color: Colors.white),
+                          color: Colors.white,
+                          letterSpacing: 1.5),
                     ),
                   ),
                   IconButton(
@@ -148,6 +153,7 @@ class _ModeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -158,7 +164,7 @@ class _ModeButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: selected
-                ? const Color(0xFF5B7FA8).withValues(alpha: 0.5)
+                ? accent.withValues(alpha: 0.5)
                 : const Color(0xFF242426),
             width: selected ? 1.5 : 1,
           ),
@@ -168,7 +174,7 @@ class _ModeButton extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: selected ? const Color(0xFF5B7FA8) : Colors.white24,
+              color: selected ? accent : Colors.white24,
               size: 30,
             ),
             const SizedBox(height: 8),
@@ -356,6 +362,7 @@ class _SessionCardState extends State<_SessionCard> {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final s = widget.session;
     final isToday = widget.isToday;
     final subtitle = [
@@ -366,7 +373,7 @@ class _SessionCardState extends State<_SessionCard> {
     const weekdays = ['', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
     final dayAbbr = s.weekdays.isNotEmpty ? weekdays[s.weekdays.first] : '';
     final labelText = isToday ? 'TODAY · $dayAbbr' : dayAbbr;
-    final labelColor = isToday ? const Color(0xFF5B7FA8) : Colors.white30;
+    final labelColor = isToday ? accent : Colors.white30;
     final cardBg = isToday ? const Color(0xFF13192A) : const Color(0xFF161618);
     final borderColor = isToday
         ? const Color(0xFF2A4068)
@@ -440,7 +447,7 @@ class _SessionCardState extends State<_SessionCard> {
                 color: _justLogged
                     ? const Color(0xFF1A3526)
                     : isToday
-                        ? const Color(0xFF5B7FA8)
+                        ? accent
                         : const Color(0xFF242428),
                 borderRadius: BorderRadius.circular(14),
                 border: _justLogged

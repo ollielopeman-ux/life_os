@@ -24,6 +24,16 @@ class AppSettings {
   final double navBarScale;
   final double navBarBottom;
   final double navBarHPad;
+  final bool hapticsEnabled;
+  final String weightUnit; // 'kg' or 'lbs'
+  final bool showNavLabels;
+  final int restTimerSeconds;
+  final double? targetWeightKg;
+  final int readingGoal;
+  final String accentColor; // hex without #, e.g. '5B7FA8'
+  final double weightStep;  // kg per step: 1.25, 2.5, 5, 10
+  final bool weekStartsMonday;
+  final double pageTopPad;
 
   const AppSettings({
     this.weightEnabled = true,
@@ -48,6 +58,16 @@ class AppSettings {
     this.navBarScale = 1.0,
     this.navBarBottom = 8.0,
     this.navBarHPad = 20.0,
+    this.hapticsEnabled = true,
+    this.weightUnit = 'kg',
+    this.showNavLabels = false,
+    this.restTimerSeconds = 90,
+    this.targetWeightKg,
+    this.readingGoal = 0,
+    this.accentColor = '5B7FA8',
+    this.weightStep = 2.5,
+    this.weekStartsMonday = true,
+    this.pageTopPad = 20.0,
   });
 
   AppSettings copyWith({
@@ -73,6 +93,17 @@ class AppSettings {
     double? navBarScale,
     double? navBarBottom,
     double? navBarHPad,
+    bool? hapticsEnabled,
+    String? weightUnit,
+    bool? showNavLabels,
+    int? restTimerSeconds,
+    double? targetWeightKg,
+    bool clearTargetWeight = false,
+    int? readingGoal,
+    String? accentColor,
+    double? weightStep,
+    bool? weekStartsMonday,
+    double? pageTopPad,
   }) =>
       AppSettings(
         weightEnabled: weightEnabled ?? this.weightEnabled,
@@ -97,6 +128,16 @@ class AppSettings {
         navBarScale: navBarScale ?? this.navBarScale,
         navBarBottom: navBarBottom ?? this.navBarBottom,
         navBarHPad: navBarHPad ?? this.navBarHPad,
+        hapticsEnabled: hapticsEnabled ?? this.hapticsEnabled,
+        weightUnit: weightUnit ?? this.weightUnit,
+        showNavLabels: showNavLabels ?? this.showNavLabels,
+        restTimerSeconds: restTimerSeconds ?? this.restTimerSeconds,
+        targetWeightKg: clearTargetWeight ? null : (targetWeightKg ?? this.targetWeightKg),
+        readingGoal: readingGoal ?? this.readingGoal,
+        accentColor: accentColor ?? this.accentColor,
+        weightStep: weightStep ?? this.weightStep,
+        weekStartsMonday: weekStartsMonday ?? this.weekStartsMonday,
+        pageTopPad: pageTopPad ?? this.pageTopPad,
       );
 
   factory AppSettings.fromMap(Map<String, dynamic> m) => AppSettings(
@@ -122,6 +163,16 @@ class AppSettings {
         navBarScale: (m['navBarScale'] as num?)?.toDouble() ?? 1.0,
         navBarBottom: (m['navBarBottom'] as num?)?.toDouble() ?? 8.0,
         navBarHPad: (m['navBarHPad'] as num?)?.toDouble() ?? 20.0,
+        hapticsEnabled: m['hapticsEnabled'] ?? true,
+        weightUnit: m['weightUnit'] ?? 'kg',
+        showNavLabels: m['showNavLabels'] ?? false,
+        restTimerSeconds: m['restTimerSeconds'] ?? 90,
+        targetWeightKg: (m['targetWeightKg'] as num?)?.toDouble(),
+        readingGoal: m['readingGoal'] ?? 0,
+        accentColor: m['accentColor'] ?? '5B7FA8',
+        weightStep: (m['weightStep'] as num?)?.toDouble() ?? 2.5,
+        weekStartsMonday: m['weekStartsMonday'] ?? true,
+        pageTopPad: (m['pageTopPad'] as num?)?.toDouble() ?? 20.0,
       );
 
   Map<String, dynamic> toMap() => {
@@ -147,6 +198,16 @@ class AppSettings {
         'navBarScale': navBarScale,
         'navBarBottom': navBarBottom,
         'navBarHPad': navBarHPad,
+        'hapticsEnabled': hapticsEnabled,
+        'weightUnit': weightUnit,
+        'showNavLabels': showNavLabels,
+        'restTimerSeconds': restTimerSeconds,
+        'targetWeightKg': targetWeightKg,
+        'readingGoal': readingGoal,
+        'accentColor': accentColor,
+        'weightStep': weightStep,
+        'weekStartsMonday': weekStartsMonday,
+        'pageTopPad': pageTopPad,
       };
 }
 

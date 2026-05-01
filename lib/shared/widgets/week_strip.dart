@@ -122,6 +122,7 @@ class _DayCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final letter = DateFormat('E').format(day)[0];
 
     return Column(
@@ -131,7 +132,7 @@ class _DayCell extends StatelessWidget {
         Text(
           letter,
           style: TextStyle(
-            color: isToday ? const Color(0xFF5B7FA8) : Colors.white24,
+            color: isToday ? accent : Colors.white24,
             fontSize: 11,
             fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
             letterSpacing: 0.5,
@@ -147,7 +148,7 @@ class _DayCell extends StatelessWidget {
                   color: const Color(0xFF1A2C47),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: const Color(0xFF5B7FA8).withValues(alpha: 0.55),
+                    color: accent.withValues(alpha: 0.55),
                     width: 1,
                   ),
                 )

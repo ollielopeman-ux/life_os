@@ -19,6 +19,8 @@ class MainShell extends ConsumerStatefulWidget {
 }
 
 class _MainShellState extends ConsumerState<MainShell> {
+  bool _showMore = false;
+
   @override
   void initState() {
     super.initState();
@@ -63,13 +65,13 @@ class _MainShellState extends ConsumerState<MainShell> {
     final navBarScale = ref.watch(settingsProvider.select((s) => s.navBarScale));
     final navBarBottom = ref.watch(settingsProvider.select((s) => s.navBarBottom));
     final navBarHPad = ref.watch(settingsProvider.select((s) => s.navBarHPad));
+    final showLabels = ref.watch(settingsProvider.select((s) => s.showNavLabels));
     final barHeight = 64.0 * navBarScale;
+    final pillHeight = showLabels ? barHeight + 18 : barHeight;
     final bottomInset = MediaQuery.of(context).padding.bottom;
-    // Reserve only the margin + safe area — content extends behind the glass for blur
     final reservedBottom = _barMargin + bottomInset;
 
     return Scaffold(
-      // Transparent so child screens provide the background; glass blurs real content
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
@@ -81,7 +83,50 @@ class _MainShellState extends ConsumerState<MainShell> {
             ),
             child: widget.child,
           ),
-          // ── Horizontal bar (6 icons) + edit circle ─────────────────────────────
+          // Dismiss overlay when More popup is open
+          if (_showMore)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => setState(() => _showMore = false),
+                behavior: HitTestBehavior.opaque,
+                child: const SizedBox.expand(),
+              ),
+            ),
+          // More popup — right-anchored so Body sits above More, Reading above Calendar
+          Positioned(
+            right: navBarHPad + barHeight + 10,
+            bottom: navBarBottom + bottomInset + pillHeight + 10,
+            child: IgnorePointer(
+              ignoring: !_showMore,
+              child: AnimatedOpacity(
+                opacity: _showMore ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 180),
+                child: AnimatedSlide(
+                  offset: _showMore ? Offset.zero : const Offset(0, 0.25),
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOut,
+                  child: _MorePopup(
+                    currentIndex: currentIndex,
+                    barHeight: barHeight,
+                    showLabels: showLabels,
+                    onReadingTap: () {
+                      setState(() => _showMore = false);
+                      final haptics = ref.read(settingsProvider).hapticsEnabled;
+                      if (haptics) HapticFeedback.lightImpact();
+                      context.go('/reading');
+                    },
+                    onBodyTap: () {
+                      setState(() => _showMore = false);
+                      final haptics = ref.read(settingsProvider).hapticsEnabled;
+                      if (haptics) HapticFeedback.lightImpact();
+                      context.go('/body');
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Nav bar + edit circle
           Positioned(
             left: navBarHPad,
             right: navBarHPad,
@@ -92,7 +137,13 @@ class _MainShellState extends ConsumerState<MainShell> {
                 _GlassNavPill(
                   currentIndex: currentIndex,
                   barHeight: barHeight,
+                  showLabels: showLabels,
+                  showMore: _showMore,
+                  onMoreTap: () => setState(() => _showMore = !_showMore),
                   onTap: (i) {
+                    setState(() => _showMore = false);
+                    final haptics = ref.read(settingsProvider).hapticsEnabled;
+                    if (haptics) HapticFeedback.lightImpact();
                     switch (i) {
                       case 0:
                         context.go('/gym');
@@ -100,12 +151,8 @@ class _MainShellState extends ConsumerState<MainShell> {
                         context.go('/cardio');
                       case 2:
                         context.go('/schedule');
-                      case 3:
-                        context.go('/body');
                       case 4:
                         context.go('/checklist');
-                      case 5:
-                        context.go('/reading');
                     }
                   },
                 ),
@@ -150,7 +197,7 @@ class _MainShellState extends ConsumerState<MainShell> {
           child: _MenuRow(
             icon: Icons.monitor_weight_outlined,
             label: 'Log Weight & Photo',
-            color: const Color(0xFF5B7FA8),
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
         const PopupMenuDivider(height: 1),
@@ -159,7 +206,7 @@ class _MainShellState extends ConsumerState<MainShell> {
           child: _MenuRow(
             icon: Icons.menu_book_outlined,
             label: 'Add New Book',
-            color: const Color(0xFF9B7FD4),
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
       ],
@@ -301,11 +348,43 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
     return !_nextHours.map(_hourKey).contains(_selectedTime);
   }
 
+  void _fillText(String text) {
+    _controller.text = text;
+    _controller.selection = TextSelection.fromPosition(TextPosition(offset: text.length));
+    setState(() {});
+    _focusNode.requestFocus();
+  }
+
+  static const _quickItems = [
+    ('Gym',      Icons.fitness_center,    Color(0xFF5B7FA8)),
+    ('Cardio',   Icons.directions_run,    Color(0xFFE07B54)),
+    ('Reading',  Icons.menu_book_rounded, Color(0xFF9B7FD4)),
+    ('Journal',  Icons.edit_note_rounded, Colors.white54),
+    ('Walk',     Icons.directions_walk,   Colors.white54),
+    ('Meditate', Icons.self_improvement,  Colors.white54),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
     final safeBottom = MediaQuery.of(context).padding.bottom;
     final hours = _nextHours;
+    final allItems = ref.watch(checklistProvider);
+    final now = DateTime.now();
+    final todayMid = DateTime(now.year, now.month, now.day);
+    bool sameDay(DateTime d) =>
+        d.year == todayMid.year && d.month == todayMid.month && d.day == todayMid.day;
+    final todayTitles = allItems
+        .where((i) => sameDay(i.date))
+        .map((i) => i.title.toLowerCase())
+        .toSet();
+    final seenLower = <String>{};
+    final recents = allItems
+        .where((i) => !sameDay(i.date))
+        .map((i) => i.title)
+        .where((t) => !todayTitles.contains(t.toLowerCase()) && seenLower.add(t.toLowerCase()))
+        .take(5)
+        .toList();
 
     return Padding(
       padding: EdgeInsets.only(
@@ -324,6 +403,47 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── Quick add suggestions ────────────────────────────────────
+            const Text('QUICK ADD',
+                style: TextStyle(
+                    color: Colors.white38,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.2)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: _quickItems
+                  .map((q) => _QuickChip(
+                        label: q.$1,
+                        icon: q.$2,
+                        iconColor: q.$3,
+                        onTap: () => _fillText(q.$1),
+                      ))
+                  .toList(),
+            ),
+            if (recents.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text('RECENT',
+                  style: TextStyle(
+                      color: Colors.white38,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.2)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: recents
+                    .map((t) => _QuickChip(label: t, onTap: () => _fillText(t)))
+                    .toList(),
+              ),
+            ],
+            const SizedBox(height: 12),
+            const Divider(height: 1, color: Color(0xFF2C2C2E)),
+            const SizedBox(height: 12),
+            // ── Text field ───────────────────────────────────────────────
             SizedBox(
               height: 48,
               child: Row(
@@ -352,30 +472,29 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
                   const SizedBox(width: 12),
                   GestureDetector(
                     onTap: _submit,
-                    child: Container(
-                      width: 48,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color(0xFF6E96C0), Color(0xFF3C618A)],
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF5B7FA8).withValues(alpha: 0.4),
-                            blurRadius: 10,
-                            offset: const Offset(0, 3),
+                    child: Builder(builder: (ctx) {
+                      final accent = Theme.of(ctx).colorScheme.primary;
+                      return Container(
+                        width: 48,
+                        decoration: BoxDecoration(
+                          color: accent,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: accent.withValues(alpha: 0.4),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            width: 0.8,
                           ),
-                        ],
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          width: 0.8,
                         ),
-                      ),
-                      child: const Icon(Icons.arrow_upward_rounded,
-                          color: Colors.white, size: 22),
-                    ),
+                        child: const Icon(Icons.arrow_upward_rounded,
+                            color: Colors.white, size: 22),
+                      );
+                    }),
                   ),
                 ],
               ),
@@ -475,37 +594,36 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: _confirmCustom,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 7),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color(0xFF6E96C0), Color(0xFF3C618A)],
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF5B7FA8).withValues(alpha: 0.35),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
+                  Builder(builder: (ctx) {
+                    final accent = Theme.of(ctx).colorScheme.primary;
+                    return GestureDetector(
+                      onTap: _confirmCustom,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: accent,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: accent.withValues(alpha: 0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            width: 0.8,
                           ),
-                        ],
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          width: 0.8,
                         ),
+                        child: const Text('Set',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700)),
                       ),
-                      child: const Text('Set',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700)),
-                    ),
-                  ),
+                    );
+                  }),
                 ],
               ),
             ],
@@ -526,6 +644,7 @@ class _TimeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -533,20 +652,18 @@ class _TimeChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
           color: selected
-              ? const Color(0xFF5B7FA8).withValues(alpha: 0.18)
+              ? accent.withValues(alpha: 0.18)
               : const Color(0xFF2C2C2E),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: selected
-                ? const Color(0xFF5B7FA8).withValues(alpha: 0.7)
-                : Colors.transparent,
+            color: selected ? accent.withValues(alpha: 0.7) : Colors.transparent,
           ),
         ),
         child: Text(
           label,
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: selected ? const Color(0xFF5B7FA8) : Colors.white54,
+            color: selected ? accent : Colors.white54,
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
@@ -556,39 +673,95 @@ class _TimeChip extends StatelessWidget {
   }
 }
 
-// ── Glass Nav Pill (6 icons — gym, cardio, calendar, body, checklist, reading) ──
+// ── Quick chip (used in quick-add sheet) ──────────────────────────────────────
+
+class _QuickChip extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final Color? iconColor;
+  final VoidCallback onTap;
+
+  const _QuickChip({
+    required this.label,
+    this.icon,
+    this.iconColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2C2C2E),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF3A3A3C)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon!, size: 14, color: iconColor ?? Colors.white38),
+              const SizedBox(width: 6),
+            ],
+            Text(label,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Glass Nav Pill (4 icons + More) ───────────────────────────────────────────
 
 class _GlassNavPill extends StatelessWidget {
   final int currentIndex;
   final double barHeight;
+  final bool showLabels;
+  final bool showMore;
   final ValueChanged<int> onTap;
+  final VoidCallback onMoreTap;
 
-  const _GlassNavPill({required this.currentIndex, required this.barHeight, required this.onTap});
+  const _GlassNavPill({
+    required this.currentIndex,
+    required this.barHeight,
+    required this.showLabels,
+    required this.showMore,
+    required this.onTap,
+    required this.onMoreTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final pillHeight = showLabels ? barHeight + 18 : barHeight;
     return Container(
-      height: barHeight,
+      height: pillHeight,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
-            blurRadius: 28,
-            offset: const Offset(0, 10),
+            color: Colors.black.withValues(alpha: 0.65),
+            blurRadius: 40,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          filter: ImageFilter.blur(sigmaX: 36, sigmaY: 36),
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF1C1C1E).withValues(alpha: 0.94),
+              color: Colors.black.withValues(alpha: 0.58),
               borderRadius: BorderRadius.circular(28),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.08),
+                color: Colors.white.withValues(alpha: 0.12),
                 width: 0.5,
               ),
             ),
@@ -596,12 +769,71 @@ class _GlassNavPill extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _NavIcon(icon: Icons.checklist_rounded, selected: currentIndex == 4, barHeight: barHeight, onTap: () => onTap(4)),
-                _NavIcon(icon: Icons.fitness_center, selected: currentIndex == 0, barHeight: barHeight, onTap: () => onTap(0)),
-                _NavIcon(icon: Icons.directions_run, selected: currentIndex == 1, barHeight: barHeight, onTap: () => onTap(1)),
-                _NavIcon(icon: Icons.menu_book_outlined, selected: currentIndex == 5, barHeight: barHeight, onTap: () => onTap(5)),
-                _NavIcon(icon: Icons.monitor_weight_outlined, selected: currentIndex == 3, barHeight: barHeight, onTap: () => onTap(3)),
-                _NavIcon(icon: Icons.calendar_month, selected: currentIndex == 2, barHeight: barHeight, onTap: () => onTap(2)),
+                _NavIcon(icon: Icons.format_list_bulleted_rounded, label: 'Tasks', selected: !showMore && currentIndex == 4, barHeight: barHeight, showLabel: showLabels, onTap: () => onTap(4)),
+                _NavIcon(icon: Icons.fitness_center, label: 'Gym', selected: !showMore && currentIndex == 0, barHeight: barHeight, showLabel: showLabels, onTap: () => onTap(0)),
+                _NavIcon(icon: Icons.directions_run, label: 'Cardio', selected: !showMore && currentIndex == 1, barHeight: barHeight, showLabel: showLabels, onTap: () => onTap(1)),
+                _NavIcon(icon: Icons.calendar_month, label: 'Log', selected: !showMore && currentIndex == 2, barHeight: barHeight, showLabel: showLabels, onTap: () => onTap(2)),
+                _NavIcon(icon: Icons.more_horiz, label: 'More', selected: showMore || (!showMore && (currentIndex == 3 || currentIndex == 5)), barHeight: barHeight, showLabel: showLabels, onTap: onMoreTap),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── More Popup ────────────────────────────────────────────────────────────────
+
+class _MorePopup extends StatelessWidget {
+  final int currentIndex;
+  final double barHeight;
+  final bool showLabels;
+  final VoidCallback onReadingTap;
+  final VoidCallback onBodyTap;
+
+  const _MorePopup({
+    required this.currentIndex,
+    required this.barHeight,
+    required this.showLabels,
+    required this.onReadingTap,
+    required this.onBodyTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final pillHeight = showLabels ? barHeight + 18 : barHeight;
+    return Container(
+      height: pillHeight,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.65),
+            blurRadius: 40,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 36, sigmaY: 36),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.58),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.12),
+                width: 0.5,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _NavIcon(icon: Icons.menu_book_outlined, label: 'Reading', selected: currentIndex == 5, barHeight: barHeight, showLabel: showLabels, onTap: onReadingTap),
+                _NavIcon(icon: Icons.monitor_weight_outlined, label: 'Body', selected: currentIndex == 3, barHeight: barHeight, showLabel: showLabels, onTap: onBodyTap),
               ],
             ),
           ),
@@ -613,21 +845,27 @@ class _GlassNavPill extends StatelessWidget {
 
 class _NavIcon extends StatelessWidget {
   final IconData icon;
+  final String label;
   final bool selected;
   final double barHeight;
+  final bool showLabel;
   final VoidCallback onTap;
 
   const _NavIcon({
     required this.icon,
+    required this.label,
     required this.selected,
     required this.barHeight,
+    required this.showLabel,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final iconSize = (barHeight * 0.37).clamp(20.0, 32.0);
     final w = barHeight * 0.72;
+    final itemHeight = showLabel ? barHeight + 10 : barHeight - 8;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -635,12 +873,29 @@ class _NavIcon extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
         width: w,
-        height: barHeight - 8,
+        height: itemHeight,
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFF3A3A3C) : Colors.transparent,
+          color: selected ? accent.withValues(alpha: 0.15) : Colors.transparent,
           borderRadius: BorderRadius.circular(barHeight / 2),
         ),
-        child: Icon(icon, color: Colors.white, size: iconSize),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: selected ? accent : Colors.white54, size: iconSize),
+            if (showLabel) ...[
+              const SizedBox(height: 3),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? accent : Colors.white38,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -660,27 +915,28 @@ class _EditCircle extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
+        borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
-            blurRadius: 28,
-            offset: const Offset(0, 10),
+            color: Colors.black.withValues(alpha: 0.65),
+            blurRadius: 40,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
-      child: ClipOval(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          filter: ImageFilter.blur(sigmaX: 36, sigmaY: 36),
           child: GestureDetector(
             onTap: onTap,
             onLongPress: onLongPress,
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF1C1C1E).withValues(alpha: 0.94),
-                shape: BoxShape.circle,
+                color: Colors.black.withValues(alpha: 0.58),
+                borderRadius: BorderRadius.circular(28),
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.08),
+                  color: Colors.white.withValues(alpha: 0.12),
                   width: 0.5,
                 ),
               ),

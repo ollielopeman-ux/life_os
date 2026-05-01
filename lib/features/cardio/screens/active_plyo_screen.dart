@@ -213,7 +213,7 @@ class _ActivePlyoScreenState extends ConsumerState<ActivePlyoScreen> {
                 icon: Icons.check_circle_outline,
                 label: 'End Workout',
                 subtitle: 'Save and finish',
-                color: const Color(0xFF5B7FA8),
+                color: Theme.of(context).colorScheme.primary,
                 onTap: () async {
                   Navigator.of(dlgCtx).pop();
                   final nav = Navigator.of(context);
@@ -255,6 +255,7 @@ class _ActivePlyoScreenState extends ConsumerState<ActivePlyoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final state = ref.watch(activePlyoProvider);
     final workout = state.workout;
     if (workout == null) return const SizedBox.shrink();
@@ -405,12 +406,12 @@ class _ActivePlyoScreenState extends ConsumerState<ActivePlyoScreen> {
                   height: 42,
                   decoration: BoxDecoration(
                     color: _timerOpen
-                        ? const Color(0xFF5B7FA8).withValues(alpha: 0.12)
+                        ? accent.withValues(alpha: 0.12)
                         : const Color(0xFF1C1C1E),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: _timerOpen
-                          ? const Color(0xFF5B7FA8).withValues(alpha: 0.4)
+                          ? accent.withValues(alpha: 0.4)
                           : const Color(0xFF2C2C2E),
                     ),
                   ),
@@ -420,13 +421,13 @@ class _ActivePlyoScreenState extends ConsumerState<ActivePlyoScreen> {
                       Icon(Icons.timer_outlined,
                           size: 15,
                           color: _timerOpen
-                              ? const Color(0xFF5B7FA8)
+                              ? accent
                               : Colors.white38),
                       const SizedBox(width: 7),
                       Text('Interval Timer',
                           style: TextStyle(
                               color: _timerOpen
-                                  ? const Color(0xFF5B7FA8)
+                                  ? accent
                                   : Colors.white38,
                               fontSize: 13,
                               fontWeight: FontWeight.w600)),
@@ -437,7 +438,7 @@ class _ActivePlyoScreenState extends ConsumerState<ActivePlyoScreen> {
                               : Icons.keyboard_arrow_up,
                           size: 16,
                           color: _timerOpen
-                              ? const Color(0xFF5B7FA8)
+                              ? accent
                               : Colors.white38),
                     ],
                   ),
@@ -617,6 +618,7 @@ class _ExerciseCellState extends State<_ExerciseCell> {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final ex = widget.exercise;
     final isDone = widget.isDone;
     final isCurrent = widget.isCurrent;
@@ -628,7 +630,7 @@ class _ExerciseCellState extends State<_ExerciseCell> {
       borderColor = Colors.white12;
       bgColor = const Color(0xFF111113);
     } else if (isCurrent) {
-      borderColor = const Color(0xFF5B7FA8).withValues(alpha: 0.5);
+      borderColor = accent.withValues(alpha: 0.5);
       bgColor = const Color(0xFF131E2E);
     } else {
       borderColor = const Color(0xFF242426);
@@ -665,8 +667,7 @@ class _ExerciseCellState extends State<_ExerciseCell> {
                           color: isDone
                               ? const Color(0xFF34C759).withValues(alpha: 0.15)
                               : isCurrent
-                                  ? const Color(0xFF5B7FA8)
-                                      .withValues(alpha: 0.2)
+                                  ? accent.withValues(alpha: 0.2)
                                   : const Color(0xFF2C2C2E),
                           shape: BoxShape.circle,
                         ),
@@ -676,7 +677,7 @@ class _ExerciseCellState extends State<_ExerciseCell> {
                           color: isDone
                               ? const Color(0xFF34C759)
                               : isCurrent
-                                  ? const Color(0xFF5B7FA8)
+                                  ? accent
                                   : Colors.white24,
                         ),
                       ),
@@ -707,12 +708,12 @@ class _ExerciseCellState extends State<_ExerciseCell> {
                                     margin: const EdgeInsets.only(right: 5),
                                     decoration: BoxDecoration(
                                       color: filled
-                                          ? const Color(0xFF5B7FA8)
+                                          ? accent
                                           : const Color(0xFF2A2A2C),
                                       borderRadius: BorderRadius.circular(5),
                                       border: Border.all(
                                         color: filled
-                                            ? const Color(0xFF5B7FA8)
+                                            ? accent
                                             : const Color(0xFF3A3A3C),
                                       ),
                                     ),
@@ -762,9 +763,9 @@ class _ExerciseCellState extends State<_ExerciseCell> {
                               )
                             : Container(
                                 color: const Color(0xFF1C1C1E),
-                                child: const Center(
+                                child: Center(
                                   child: CircularProgressIndicator(
-                                      color: Color(0xFF5B7FA8),
+                                      color: accent,
                                       strokeWidth: 2),
                                 ),
                               ),
@@ -836,7 +837,7 @@ class _ExerciseCellState extends State<_ExerciseCell> {
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF5B7FA8),
+                            color: accent,
                             borderRadius: BorderRadius.circular(11),
                           ),
                           child: const Icon(Icons.add,
@@ -910,10 +911,11 @@ class _IntervalTimerPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final mins = (remainingSecs ~/ 60).toString().padLeft(2, '0');
     final secs = (remainingSecs % 60).toString().padLeft(2, '0');
     final phaseColor =
-        isWorkPhase ? const Color(0xFF5B7FA8) : const Color(0xFF34C759);
+        isWorkPhase ? accent : const Color(0xFF34C759);
 
     return Container(
       decoration: const BoxDecoration(
@@ -934,12 +936,12 @@ class _IntervalTimerPanel extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: soundEnabled
-                      ? const Color(0xFF5B7FA8).withValues(alpha: 0.12)
+                      ? accent.withValues(alpha: 0.12)
                       : const Color(0xFF242428),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: soundEnabled
-                        ? const Color(0xFF5B7FA8).withValues(alpha: 0.4)
+                        ? accent.withValues(alpha: 0.4)
                         : const Color(0xFF3A3A3C),
                   ),
                 ),
@@ -952,7 +954,7 @@ class _IntervalTimerPanel extends StatelessWidget {
                           : Icons.volume_off_rounded,
                       size: 13,
                       color: soundEnabled
-                          ? const Color(0xFF5B7FA8)
+                          ? accent
                           : Colors.white30,
                     ),
                     const SizedBox(width: 5),
@@ -961,7 +963,7 @@ class _IntervalTimerPanel extends StatelessWidget {
                       style: TextStyle(
                           fontSize: 11,
                           color: soundEnabled
-                              ? const Color(0xFF5B7FA8)
+                              ? accent
                               : Colors.white30),
                     ),
                   ],
@@ -991,7 +993,7 @@ class _IntervalTimerPanel extends StatelessWidget {
             const SizedBox(height: 14),
             _TimerBtn(
               icon: Icons.play_arrow,
-              color: const Color(0xFF5B7FA8),
+              color: accent,
               large: true,
               onTap: onStart,
             ),
@@ -1023,7 +1025,7 @@ class _IntervalTimerPanel extends StatelessWidget {
                 const SizedBox(width: 18),
                 _TimerBtn(
                   icon: isRunning ? Icons.pause : Icons.play_arrow,
-                  color: const Color(0xFF5B7FA8),
+                  color: accent,
                   large: true,
                   onTap: isRunning ? onPause : onResume,
                 ),
