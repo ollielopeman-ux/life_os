@@ -20,6 +20,8 @@ class AppSettings {
   final int cardioHour;
   final int cardioMinute;
   final bool isDarkMode;
+  final double uiScale;
+  final double navBarScale;
 
   const AppSettings({
     this.weightEnabled = true,
@@ -40,6 +42,8 @@ class AppSettings {
     this.cardioHour = 18,
     this.cardioMinute = 0,
     this.isDarkMode = true,
+    this.uiScale = 1.0,
+    this.navBarScale = 1.0,
   });
 
   AppSettings copyWith({
@@ -61,6 +65,8 @@ class AppSettings {
     int? cardioHour,
     int? cardioMinute,
     bool? isDarkMode,
+    double? uiScale,
+    double? navBarScale,
   }) =>
       AppSettings(
         weightEnabled: weightEnabled ?? this.weightEnabled,
@@ -81,6 +87,8 @@ class AppSettings {
         cardioHour: cardioHour ?? this.cardioHour,
         cardioMinute: cardioMinute ?? this.cardioMinute,
         isDarkMode: isDarkMode ?? this.isDarkMode,
+        uiScale: uiScale ?? this.uiScale,
+        navBarScale: navBarScale ?? this.navBarScale,
       );
 
   factory AppSettings.fromMap(Map<String, dynamic> m) => AppSettings(
@@ -102,6 +110,8 @@ class AppSettings {
         cardioHour: m['cardioHour'] ?? 18,
         cardioMinute: m['cardioMinute'] ?? 0,
         isDarkMode: m['isDarkMode'] ?? true,
+        uiScale: (m['uiScale'] as num?)?.toDouble() ?? 1.0,
+        navBarScale: (m['navBarScale'] as num?)?.toDouble() ?? 1.0,
       );
 
   Map<String, dynamic> toMap() => {
@@ -123,6 +133,8 @@ class AppSettings {
         'cardioHour': cardioHour,
         'cardioMinute': cardioMinute,
         'isDarkMode': isDarkMode,
+        'uiScale': uiScale,
+        'navBarScale': navBarScale,
       };
 }
 

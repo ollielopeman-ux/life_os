@@ -4,21 +4,21 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/checklist/providers/checklist_provider.dart';
+import '../../features/settings/providers/settings_provider.dart';
 import '../services/notification_service.dart';
 
-const _barHeight = 56.0;
 const _barMargin = 14.0;
 const _barHPad = 20.0;
 
-class MainShell extends StatefulWidget {
+class MainShell extends ConsumerStatefulWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
 
   @override
-  State<MainShell> createState() => _MainShellState();
+  ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends ConsumerState<MainShell> {
   @override
   void initState() {
     super.initState();
@@ -60,6 +60,8 @@ class _MainShellState extends State<MainShell> {
       currentIndex = 4;
     }
 
+    final navBarScale = ref.watch(settingsProvider.select((s) => s.navBarScale));
+    final barHeight = 64.0 * navBarScale;
     final bottomInset = MediaQuery.of(context).padding.bottom;
     // Reserve only the margin + safe area — content extends behind the glass for blur
     final reservedBottom = _barMargin + bottomInset;
@@ -87,6 +89,7 @@ class _MainShellState extends State<MainShell> {
               children: [
                 _GlassNavPill(
                   currentIndex: currentIndex,
+                  barHeight: barHeight,
                   onTap: (i) {
                     switch (i) {
                       case 0:
@@ -106,6 +109,7 @@ class _MainShellState extends State<MainShell> {
                 ),
                 const Spacer(),
                 _EditCircle(
+                  size: barHeight,
                   onTap: () => _showQuickAdd(context),
                   onLongPress: () {
                     HapticFeedback.mediumImpact();
@@ -123,7 +127,7 @@ class _MainShellState extends State<MainShell> {
   void _showEditMenu(BuildContext context) {
     final screen = MediaQuery.of(context).size;
     final safeBottom = MediaQuery.of(context).padding.bottom;
-    final buttonAreaBottom = safeBottom + _barMargin + _barHeight;
+    final buttonAreaBottom = safeBottom + _barMargin + 68.0;
     final router = GoRouter.of(context);
 
     showMenu<String>(
@@ -554,14 +558,15 @@ class _TimeChip extends StatelessWidget {
 
 class _GlassNavPill extends StatelessWidget {
   final int currentIndex;
+  final double barHeight;
   final ValueChanged<int> onTap;
 
-  const _GlassNavPill({required this.currentIndex, required this.onTap});
+  const _GlassNavPill({required this.currentIndex, required this.barHeight, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 56,
+      height: barHeight,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
@@ -589,36 +594,12 @@ class _GlassNavPill extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _NavIcon(
-                  icon: Icons.checklist_rounded,
-                  selected: currentIndex == 4,
-                  onTap: () => onTap(4),
-                ),
-                _NavIcon(
-                  icon: Icons.fitness_center,
-                  selected: currentIndex == 0,
-                  onTap: () => onTap(0),
-                ),
-                _NavIcon(
-                  icon: Icons.directions_run,
-                  selected: currentIndex == 1,
-                  onTap: () => onTap(1),
-                ),
-                _NavIcon(
-                  icon: Icons.menu_book_outlined,
-                  selected: currentIndex == 5,
-                  onTap: () => onTap(5),
-                ),
-                _NavIcon(
-                  icon: Icons.monitor_weight_outlined,
-                  selected: currentIndex == 3,
-                  onTap: () => onTap(3),
-                ),
-                _NavIcon(
-                  icon: Icons.calendar_month,
-                  selected: currentIndex == 2,
-                  onTap: () => onTap(2),
-                ),
+                _NavIcon(icon: Icons.checklist_rounded, selected: currentIndex == 4, barHeight: barHeight, onTap: () => onTap(4)),
+                _NavIcon(icon: Icons.fitness_center, selected: currentIndex == 0, barHeight: barHeight, onTap: () => onTap(0)),
+                _NavIcon(icon: Icons.directions_run, selected: currentIndex == 1, barHeight: barHeight, onTap: () => onTap(1)),
+                _NavIcon(icon: Icons.menu_book_outlined, selected: currentIndex == 5, barHeight: barHeight, onTap: () => onTap(5)),
+                _NavIcon(icon: Icons.monitor_weight_outlined, selected: currentIndex == 3, barHeight: barHeight, onTap: () => onTap(3)),
+                _NavIcon(icon: Icons.calendar_month, selected: currentIndex == 2, barHeight: barHeight, onTap: () => onTap(2)),
               ],
             ),
           ),
@@ -631,29 +612,33 @@ class _GlassNavPill extends StatelessWidget {
 class _NavIcon extends StatelessWidget {
   final IconData icon;
   final bool selected;
+  final double barHeight;
   final VoidCallback onTap;
 
   const _NavIcon({
     required this.icon,
     required this.selected,
+    required this.barHeight,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final iconSize = (barHeight * 0.37).clamp(20.0, 32.0);
+    final w = barHeight * 0.72;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
-        width: 40,
-        height: 44,
+        width: w,
+        height: barHeight - 8,
         decoration: BoxDecoration(
           color: selected ? const Color(0xFF3A3A3C) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(barHeight / 2),
         ),
-        child: Icon(icon, color: Colors.white, size: 20),
+        child: Icon(icon, color: Colors.white, size: iconSize),
       ),
     );
   }
@@ -662,15 +647,16 @@ class _NavIcon extends StatelessWidget {
 // ── Edit Circle Button ─────────────────────────────────────────────────────────
 
 class _EditCircle extends StatelessWidget {
+  final double size;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
-  const _EditCircle({required this.onTap, required this.onLongPress});
+  const _EditCircle({required this.size, required this.onTap, required this.onLongPress});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 56,
-      height: 56,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         boxShadow: [

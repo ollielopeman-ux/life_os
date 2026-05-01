@@ -644,14 +644,15 @@ class _AddEntrySheetState extends ConsumerState<_AddEntrySheet> {
     final entries = ref.watch(bodyProvider);
     final lastWeight =
         entries.where((e) => e.weight != null).firstOrNull?.weight;
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
       minChildSize: 0.5,
       maxChildSize: 0.95,
       expand: false,
-      builder: (ctx, controller) => Container(
+      builder: (ctx, controller) {
+        final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+        return Container(
         decoration: const BoxDecoration(
           color: Color(0xFF1C1C1E),
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -821,7 +822,8 @@ class _AddEntrySheetState extends ConsumerState<_AddEntrySheet> {
             ),
           ],
         ),
-      ),
+      );
+      },
     );
   }
 }

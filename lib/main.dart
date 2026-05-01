@@ -147,6 +147,7 @@ class _LifeOsAppState extends ConsumerState<LifeOsApp>
   @override
   Widget build(BuildContext context) {
     final isDark = ref.watch(settingsProvider.select((s) => s.isDarkMode));
+    final uiScale = ref.watch(settingsProvider.select((s) => s.uiScale));
     return MaterialApp.router(
       title: 'OAL OS',
       theme: AppTheme.light,
@@ -154,6 +155,12 @@ class _LifeOsAppState extends ConsumerState<LifeOsApp>
       themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
       routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: TextScaler.linear(uiScale),
+        ),
+        child: child!,
+      ),
     );
   }
 }

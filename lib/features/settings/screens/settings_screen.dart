@@ -38,6 +38,12 @@ class SettingsScreen extends ConsumerWidget {
             isDark: s.isDarkMode,
             onToggle: (v) => update(s.copyWith(isDarkMode: v)),
           ),
+          _DisplaySection(
+            uiScale: s.uiScale,
+            navBarScale: s.navBarScale,
+            onUiScale: (v) => update(s.copyWith(uiScale: v)),
+            onNavBarScale: (v) => update(s.copyWith(navBarScale: v)),
+          ),
           _NotifSection(
             icon: Icons.monitor_weight_outlined,
             title: 'Weight Log',
@@ -306,6 +312,115 @@ class _NotifSection extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+// ── Display section ───────────────────────────────────────────────────────────
+
+class _DisplaySection extends StatelessWidget {
+  final double uiScale;
+  final double navBarScale;
+  final ValueChanged<double> onUiScale;
+  final ValueChanged<double> onNavBarScale;
+
+  const _DisplaySection({
+    required this.uiScale,
+    required this.navBarScale,
+    required this.onUiScale,
+    required this.onNavBarScale,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF2C2C2E)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF5B7FA8).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.text_fields_rounded,
+                    color: Color(0xFF5B7FA8), size: 18),
+              ),
+              const SizedBox(width: 12),
+              const Text('Display',
+                  style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _ScaleRow(
+            label: 'Text size',
+            value: uiScale,
+            min: 0.8,
+            max: 1.3,
+            onChanged: onUiScale,
+          ),
+          const SizedBox(height: 14),
+          _ScaleRow(
+            label: 'Nav bar size',
+            value: navBarScale,
+            min: 0.7,
+            max: 1.4,
+            onChanged: onNavBarScale,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScaleRow extends StatelessWidget {
+  final String label;
+  final double value;
+  final double min;
+  final double max;
+  final ValueChanged<double> onChanged;
+  const _ScaleRow({required this.label, required this.value, required this.min, required this.max, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            Text('${(value * 100).round()}%',
+                style: const TextStyle(color: Colors.white38, fontSize: 12)),
+          ],
+        ),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: const Color(0xFF5B7FA8),
+            inactiveTrackColor: const Color(0xFF3A3A3C),
+            thumbColor: Colors.white,
+            overlayColor: const Color(0xFF5B7FA8).withValues(alpha: 0.2),
+            trackHeight: 3,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+          ),
+          child: Slider(
+            value: value.clamp(min, max),
+            min: min,
+            max: max,
+            divisions: ((max - min) / 0.05).round(),
+            onChanged: onChanged,
+          ),
+        ),
+      ],
     );
   }
 }
